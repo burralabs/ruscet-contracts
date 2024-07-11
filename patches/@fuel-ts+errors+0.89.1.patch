@@ -1,0 +1,95 @@
+diff --git a/node_modules/@fuel-ts/errors/dist/index.js b/node_modules/@fuel-ts/errors/dist/index.js
+index d9bd584..dea970d 100644
+--- a/node_modules/@fuel-ts/errors/dist/index.js
++++ b/node_modules/@fuel-ts/errors/dist/index.js
+@@ -107,6 +107,28 @@ var ErrorCode = /* @__PURE__ */ ((ErrorCode2) => {
+   return ErrorCode2;
+ })(ErrorCode || {});
+ 
++function formatComplexObject(obj, depth = 2) {
++    if (Array.isArray(obj)) {
++        const indent = " ".repeat(depth * 2)
++        const elements = obj.map((item) => formatComplexObject(item, depth + 1)).join(`,\n${" ".repeat(depth * 2)}`)
++        return `[\n${indent}${elements}\n${" ".repeat((depth - 1) * 2)}]`
++    } else if (typeof obj === "object" && obj !== null) {
++        // BN objects
++        if (obj.constructor && obj.constructor.name === "BN") {
++            return obj.toString() // JSON.stringify(obj)
++        } else {
++            const indent = " ".repeat(depth * 2)
++            const entries = Object.entries(obj)
++                .map(([key, value]) => `${indent}  ${key}: ${formatComplexObject(value, depth + 1)}`)
++                .join(",\n")
++
++            return `{\n${entries}\n${" ".repeat((depth - 1) * 2)}}`
++        }
++    } else {
++        return JSON.stringify(obj)
++    }
++}
++
+ // src/fuel-error.ts
+ var import_versions = require("@fuel-ts/versions");
+ var _FuelError = class extends Error {
+@@ -132,6 +154,14 @@ var _FuelError = class extends Error {
+   }
+   code;
+   constructor(code, message, metadata = {}) {
++    // console.log("Message:", { message, metadata })
++
++    if (metadata.logs) {
++      message = `${message}
++  
++    Logs: ${formatComplexObject(metadata.logs)}\n`
++    }
++
+     super(message);
+     this.code = code;
+     this.name = "FuelError";
+diff --git a/node_modules/@fuel-ts/errors/dist/index.mjs b/node_modules/@fuel-ts/errors/dist/index.mjs
+index d515bdf..eeb43f5 100644
+--- a/node_modules/@fuel-ts/errors/dist/index.mjs
++++ b/node_modules/@fuel-ts/errors/dist/index.mjs
+@@ -82,6 +82,28 @@ var ErrorCode = /* @__PURE__ */ ((ErrorCode2) => {
+   return ErrorCode2;
+ })(ErrorCode || {});
+ 
++function formatComplexObject(obj, depth = 2) {
++    if (Array.isArray(obj)) {
++        const indent = " ".repeat(depth * 2)
++        const elements = obj.map((item) => formatComplexObject(item, depth +  1)).join(`,\n${" ".repeat(depth * 2)}`)
++        return `[\n${indent}${elements}\n${" ".repeat((depth - 1) * 2)}]`
++    } else if (typeof obj === "object" && obj !== null) {
++        // BN objects
++        if (obj.constructor && obj.constructor.name === "BN") {
++            return obj.toString() // JSON.stringify(obj)
++        } else {
++            const indent = " ".repeat(depth * 2)
++            const entries = Object.entries(obj)
++                .map(([key, value]) => `${indent}  ${key}: ${formatComplexObject(value, depth + 1)}`)
++                .join(",\n")
++
++            return `{\n${entries}\n${" ".repeat((depth - 1) * 2)}}`
++        }
++    } else {
++        return JSON.stringify(obj)
++    }
++}
++
+ // src/fuel-error.ts
+ import { versions } from "@fuel-ts/versions";
+ var _FuelError = class extends Error {
+@@ -107,6 +129,13 @@ var _FuelError = class extends Error {
+   }
+   code;
+   constructor(code, message, metadata = {}) {
++    // console.log("Message:", { message, metadata })
++    if (metadata.logs) {
++      message = `${message}
++  
++    Logs: ${formatComplexObject(metadata.logs)}\n`
++    }
++      
+     super(message);
+     this.code = code;
+     this.name = "FuelError";

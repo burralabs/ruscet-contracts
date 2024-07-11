@@ -1,0 +1,11 @@
+[project]
+authors = ["Burra Labs @theausicist", "@xburralabs"]
+entry = "main.sw"
+license = "Apache-2.0"
+name = "position_router_reader"
+
+[dependencies]
+helpers = { path = "../../helpers" }
+interfaces = { path = "../../interfaces" }
+core_interfaces = { path = "../../core/interfaces" }
+peripheral_interfaces = { path = "../interfaces" }

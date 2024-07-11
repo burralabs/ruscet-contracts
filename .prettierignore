@@ -1,0 +1,17 @@
+node_modules
+build
+.next
+dist
+..temp..
+locales
+pnpm-lock.yaml
+artifacts
+build-info
+*dbg.json
+temp
+contracts/typechain
+contracts/cache 
+cache
+.vercel
+apis
+types

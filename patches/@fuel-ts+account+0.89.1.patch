@@ -1,0 +1,113 @@
+diff --git a/node_modules/@fuel-ts/account/dist/index.js b/node_modules/@fuel-ts/account/dist/index.js
+index c1c9e0c..78336ad 100644
+--- a/node_modules/@fuel-ts/account/dist/index.js
++++ b/node_modules/@fuel-ts/account/dist/index.js
+@@ -1874,6 +1874,27 @@ function sleep(time) {
+   });
+ }
+ 
++function formatObj(obj) {
++    if (Array.isArray(obj)) {
++        return obj.map((item) => formatObj(item))
++    } else if (typeof obj === "object" && obj !== null) {
++        // BN objects
++        if (obj.constructor && ["BN", "BigNumber"].includes(obj.constructor.name)) {
++            return obj.toString()
++        } else {
++            const newObj = {}
++            for (const key in obj) {
++                if (obj.hasOwnProperty(key)) {
++                    newObj[key] = formatObj(obj[key])
++                }
++            }
++            return newObj
++        }
++    } else {
++        return obj
++    }
++}
++
+ // src/providers/utils/extract-tx-error.ts
+ var import_errors7 = require("@fuel-ts/errors");
+ var import_math6 = require("@fuel-ts/math");
+@@ -1900,7 +1921,7 @@ var assembleRevertError = (receipts, logs) => {
+     switch (reasonHex) {
+       case import_configs5.FAILED_REQUIRE_SIGNAL: {
+         reason = "require";
+-        errorMessage = `The transaction reverted because a "require" statement has thrown ${logs.length ? stringify(logs[0]) : "an error."}.`;
++        errorMessage = `The transaction reverted because a "require" statement has thrown ${logs.length ? stringify(logs[logs.length - 1]) : "an error."}.`;
+         break;
+       }
+       case import_configs5.FAILED_ASSERT_EQ_SIGNAL: {
+@@ -4151,12 +4172,12 @@ var _Provider = class {
+   static ensureClientVersionIsSupported(nodeInfo) {
+     const { isMajorSupported, isMinorSupported, supportedVersion } = (0, import_versions.checkFuelCoreVersionCompatibility)(nodeInfo.nodeVersion);
+     if (!isMajorSupported || !isMinorSupported) {
+-      console.warn(
+-        `The Fuel Node that you are trying to connect to is using fuel-core version ${nodeInfo.nodeVersion},
+-which is not supported by the version of the TS SDK that you are using.
+-Things may not work as expected.
+-Supported fuel-core version: ${supportedVersion}.`
+-      );
++//       console.warn(
++//         `The Fuel Node that you are trying to connect to is using fuel-core version ${nodeInfo.nodeVersion},
++// which is not supported by the version of the TS SDK that you are using.
++// Things may not work as expected.
++// Supported fuel-core version: ${supportedVersion}.`
++//       );
+     }
+   }
+   /**
+@@ -9635,6 +9656,7 @@ var import_errors26 = require("@fuel-ts/errors");
+ 
+ // src/connectors/fuel-connector.ts
+ var import_events2 = require("events");
++const { log } = require("console");
+ 
+ // src/connectors/types/connector-types.ts
+ var FuelConnectorMethods = /* @__PURE__ */ ((FuelConnectorMethods2) => {
+diff --git a/node_modules/@fuel-ts/account/dist/index.mjs b/node_modules/@fuel-ts/account/dist/index.mjs
+index 4ef7ad9..1469134 100644
+--- a/node_modules/@fuel-ts/account/dist/index.mjs
++++ b/node_modules/@fuel-ts/account/dist/index.mjs
+@@ -1757,7 +1757,7 @@ var assembleRevertError = (receipts, logs) => {
+     switch (reasonHex) {
+       case FAILED_REQUIRE_SIGNAL: {
+         reason = "require";
+-        errorMessage = `The transaction reverted because a "require" statement has thrown ${logs.length ? stringify(logs[0]) : "an error."}.`;
++        errorMessage = `The transaction reverted because a "require" statement has thrown ${logs.length ? stringify(logs[logs.length - 1]) : "an error."}.`;
+         break;
+       }
+       case FAILED_ASSERT_EQ_SIGNAL: {
+@@ -4008,12 +4008,12 @@ var _Provider = class {
+   static ensureClientVersionIsSupported(nodeInfo) {
+     const { isMajorSupported, isMinorSupported, supportedVersion } = checkFuelCoreVersionCompatibility(nodeInfo.nodeVersion);
+     if (!isMajorSupported || !isMinorSupported) {
+-      console.warn(
+-        `The Fuel Node that you are trying to connect to is using fuel-core version ${nodeInfo.nodeVersion},
+-which is not supported by the version of the TS SDK that you are using.
+-Things may not work as expected.
+-Supported fuel-core version: ${supportedVersion}.`
+-      );
++//       console.warn(
++//         `The Fuel Node that you are trying to connect to is using fuel-core version ${nodeInfo.nodeVersion},
++// which is not supported by the version of the TS SDK that you are using.
++// Things may not work as expected.
++// Supported fuel-core version: ${supportedVersion}.`
++//       );
+     }
+   }
+   /**
+diff --git a/node_modules/@fuel-ts/account/dist/providers/provider.d.ts b/node_modules/@fuel-ts/account/dist/providers/provider.d.ts
+index 38d3ff7..fd1cf59 100644
+--- a/node_modules/@fuel-ts/account/dist/providers/provider.d.ts
++++ b/node_modules/@fuel-ts/account/dist/providers/provider.d.ts
+@@ -217,7 +217,7 @@ export default class Provider {
+      * @param options - Additional options for the provider
+      * @hidden
+      */
+-    protected constructor(url: string, options?: ProviderOptions);
++    constructor(url: string, options?: ProviderOptions);
+     /**
+      * Creates a new instance of the Provider class. This is the recommended way to initialize a Provider.
+      *

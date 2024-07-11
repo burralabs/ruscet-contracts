@@ -1,0 +1,9 @@
+[project]
+authors = ["Burra Labs @theausicist", "@xburralabs"]
+entry = "lib.sw"
+license = "Apache-2.0"
+name = "core_interfaces"
+
+[dependencies]
+helpers = { path = "../../helpers" }
+pyth_interface = { path = "../../pyth/pyth-interface" }

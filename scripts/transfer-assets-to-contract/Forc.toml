@@ -1,0 +1,8 @@
+[project]
+authors = ["Burra Labs @theausicist", "@xburralabs"]
+entry = "main.sw"
+license = "Apache-2.0"
+name = "transfer-assets-to-contract"
+
+[dependencies]
+helpers = { path = "../../contracts/helpers" }

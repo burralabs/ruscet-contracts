@@ -1,0 +1,11 @@
+[project]
+authors = ["Burra Labs @theausicist", "@xburralabs"]
+entry = "main.sw"
+license = "Apache-2.0"
+name = "base-position-manager"
+
+[dependencies]
+fungible_abi = { git = "https://github.com/burralabs/fuel-asset-standard" }
+helpers = { path = "../../helpers" }
+core_interfaces = { path = "../interfaces" }
+referrals_interfaces = { path = "../../referrals/interfaces" }
