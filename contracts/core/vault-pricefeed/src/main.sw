@@ -13,7 +13,6 @@ mod constants;
 mod errors;
 
 use std::{
-    block::timestamp,
     math::*,
     context::*,
     revert::require,
@@ -21,6 +20,7 @@ use std::{
 };
 use std::hash::*;
 use helpers::{
+    time::get_unix_timestamp,
     context::*, 
     zero::*, 
     utils::*,
@@ -93,7 +93,7 @@ impl VaultPricefeed for Contract {
 
         storage.is_adjustment_additive.insert(asset, is_additive);
         storage.adjustment_basis_points.insert(asset, adjustment_bps);
-        storage.last_adjustment_timings.insert(asset, timestamp());
+        storage.last_adjustment_timings.insert(asset, get_unix_timestamp());
     }
 
     #[storage(read, write)]

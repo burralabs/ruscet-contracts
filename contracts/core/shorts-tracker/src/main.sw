@@ -11,7 +11,6 @@ contract;
 
 mod errors;
 use std::{
-    block::timestamp,
     context::*,
     revert::require,
 };
@@ -384,7 +383,7 @@ fn _get_realized_pnl(
         _, _, _, _, 
         last_increased_time
     ) = vault_utils.get_position(
-        Address::from(account.value),
+        account,
         collateral_asset,
         index_asset,
         false

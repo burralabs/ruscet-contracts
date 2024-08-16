@@ -2,7 +2,6 @@
 library;
 
 use std::{
-    block::timestamp,
     context::*,
     primitive_conversions::{
         u8::*,
@@ -48,7 +47,6 @@ pub fn _validate_router(
     vault_storage_: ContractId
 ) {
     let vault_storage = abi(VaultStorage, vault_storage_.into());
-
     let sender = get_sender();
 
     if sender == account || sender == Account::from(vault_storage.get_router()) {
@@ -104,7 +102,6 @@ pub fn _validate_assets(
     );
 }
 
-
 pub fn _validate_position(size: u256, collateral: u256) {
     if size == 0 {
         require(
@@ -128,10 +125,10 @@ pub fn _validate_buffer_amount(
     let vault_storage = abi(VaultStorage, vault_storage_.into());
     let vault_utils = abi(VaultUtils, vault_utils_.into());
     
-    let pool_amount = vault_utils.get_pool_amounts(asset);
-    let buffer_amount = vault_storage.get_buffer_amounts(asset);
+    // let pool_amount = vault_utils.get_pool_amounts(asset);
+    // let buffer_amount = vault_storage.get_buffer_amounts(asset);
 
-    if pool_amount < buffer_amount {
+    if vault_utils.get_pool_amounts(asset) < vault_storage.get_buffer_amounts(asset) {
         require(false, Error::VaultPoolAmountLtBuffer);
     }
 }
@@ -249,16 +246,21 @@ pub fn _collect_margin_fees(
     vault_storage_: ContractId,
     vault_utils_: ContractId,
 ) -> u256 {
+    let mut fee_usd: u256 = 0;
+    let mut fee_assets: u256 = 0;
+
     let vault_utils = abi(VaultUtils, vault_utils_.into());
     let vault_storage = abi(VaultStorage, vault_storage_.into());
 
-    let fee_usd: u256 = vault_utils.get_position_fee(
+    let position_fee = vault_utils.get_position_fee(
         account,
         collateral_asset,
         index_asset,
         is_long,
         size_delta
-    ) + vault_utils.get_funding_fee(
+    );
+
+    let funding_fee = vault_utils.get_funding_fee(
         account,
         collateral_asset,
         index_asset,
@@ -267,10 +269,14 @@ pub fn _collect_margin_fees(
         entry_funding_rate
     );
 
-    let fee_assets = vault_utils.usd_to_asset_min(collateral_asset, fee_usd);
+    fee_usd = position_fee + funding_fee;
+
+    fee_assets = vault_utils.usd_to_asset_min(collateral_asset, fee_usd);
+    // let old_fee_reserve = vault_storage.get_fee_reserves(collateral_asset);
+    let new_fee_reserve =  vault_storage.get_fee_reserves(collateral_asset) + fee_assets;
     vault_storage.write_fee_reserve(
         collateral_asset,
-        vault_storage.get_fee_reserves(collateral_asset) + fee_assets
+        new_fee_reserve
     );
 
     log(CollectMarginFees {
@@ -279,7 +285,7 @@ pub fn _collect_margin_fees(
         fee_assets,
     });
 
-    return fee_usd;
+    fee_usd
 }
 
 pub fn _collect_swap_fees(
@@ -351,5 +357,16 @@ pub fn _get_swap_fee_basis_points(
         fee_basis_points_0
     } else {
         fee_basis_points_1
+    }
+}
+
+pub fn _validate_manager(vault_storage_: ContractId) {
+    let vault_storage = abi(VaultStorage, vault_storage_.into());
+
+    if vault_storage.get_in_manager_mode() {
+        require(
+            vault_storage.get_is_manager(get_sender()),
+            Error::VaultForbiddenNotManager
+        );
     }
 }

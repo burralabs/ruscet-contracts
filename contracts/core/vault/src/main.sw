@@ -16,7 +16,6 @@ __     __          _ _
 */
 
 use std::{
-    block::timestamp,
     context::*,
     revert::require,
     storage::storage_vec::*,
@@ -68,12 +67,7 @@ impl Vault for Contract {
         vault_utils: ContractId,
         vault_storage: ContractId,
     ) {
-        require(!storage.is_initialized.read(), Error::VaultAlreadyInitialized);
-        storage.is_initialized.write(true);
-
-        storage.gov.write(gov);
-        storage.vault_utils.write(vault_utils);
-        storage.vault_storage.write(vault_storage);
+        _initialize(gov, vault_utils, vault_storage);
     }
 
     /*
@@ -173,188 +167,31 @@ impl Vault for Contract {
     #[payable]
     #[storage(read)]
     fn direct_pool_deposit(asset: AssetId) {
-        // deposit into the pool without minting RUSD tokens
-        // useful in allowing the pool to become over-collaterised
-        let vault_storage_ = storage.vault_storage.read();
-        let vault_storage = abi(VaultStorage, vault_storage_.into());
-        let vault_utils = abi(VaultUtils, storage.vault_utils.read().into());
-        
-        require(
-            vault_storage.is_asset_whitelisted(asset),
-            Error::VaultAssetNotWhitelisted
-        );
-
-        let amount = _transfer_in(asset, vault_storage_).as_u256();
-        // @TODO: check this
-        require(amount > 0, Error::VaultInvalidAssetAmount);
-        vault_utils.increase_pool_amount(asset, amount);
-
-        log(DirectPoolDeposit {
-            asset: asset,
-            amount: amount,
-        });
+        _direct_pool_deposit(
+            asset,
+            storage.vault_storage.read(),
+            storage.vault_utils.read()
+        )
     }
     
     #[storage(read)]
     fn buy_rusd(asset: AssetId, receiver: Account) -> u256 {
-        require(
-            receiver.non_zero(),
-            Error::VaultReceiverCannotBeZero
-        );
-
-        _validate_manager();
-
-        let vault_storage_ = storage.vault_storage.read();
-        let vault_utils_ = storage.vault_utils.read();
-        let vault_storage = abi(VaultStorage, vault_storage_.into());
-        let vault_utils = abi(VaultUtils, vault_utils_.into());
-
-        require(
-            vault_storage.is_asset_whitelisted(asset),
-            Error::VaultAssetNotWhitelisted
-        );
-
-        vault_storage.write_use_swap_pricing(true);
-
-        let asset_amount = _transfer_in(asset, vault_storage_);
-        require(asset_amount > 0, Error::VaultInvalidAssetAmount);
-
-        vault_utils.update_cumulative_funding_rate(asset, asset);
-
-        let price = vault_utils.get_min_price(asset);
-        let rusd = vault_storage.get_rusd();
-
-        let mut rusd_amount = asset_amount.as_u256() * price / PRICE_PRECISION;
-        rusd_amount = vault_utils.adjust_for_decimals(rusd_amount, asset, rusd);
-        require(rusd_amount > 0, Error::VaultInvalidRusdAmount);
-
-        let fee_basis_points = _get_buy_rusd_fee_basis_points(
+        _buy_rusd(
             asset,
-            rusd_amount
-        );
-
-        let amount_after_fees = _collect_swap_fees(
-            asset, 
-            asset_amount, 
-            u64::try_from(fee_basis_points).unwrap(),
-            vault_storage_,
-            vault_utils_,
-        ).as_u256();
-
-        let mut mint_amount = amount_after_fees * price / PRICE_PRECISION;
-        mint_amount = vault_utils.adjust_for_decimals(mint_amount, asset, rusd);
-
-        vault_utils.increase_rusd_amount(asset, mint_amount);
-        vault_utils.increase_pool_amount(asset, amount_after_fees);
-
-        // require rusd_amount to be less than u64::max
-        require(
-            mint_amount < u64::max().as_u256(),
-            Error::VaultInvalidMintAmountGtU64Max
-        );
-
-        let rusd = abi(RUSD, vault_storage.get_rusd_contr().into());
-        rusd.mint(
             receiver,
-            u64::try_from(mint_amount).unwrap()
-        );
-
-        log(BuyRUSD {
-            account: receiver,
-            asset,
-            asset_amount,
-            rusd_amount: mint_amount,
-            fee_basis_points,
-        });
-
-        vault_storage.write_use_swap_pricing(false);
-
-        mint_amount
+            storage.vault_storage.read(),
+            storage.vault_utils.read()
+        )
     }
 
     #[storage(read)]
     fn sell_rusd(asset: AssetId, receiver: Account) -> u256 {
-        require(
-            receiver.non_zero(),
-            Error::VaultReceiverCannotBeZero
-        );
-
-        _validate_manager();
-
-        let vault_storage_ = storage.vault_storage.read();
-        let vault_utils_ = storage.vault_utils.read();
-        let vault_storage = abi(VaultStorage, vault_storage_.into());
-        let vault_utils = abi(VaultUtils, vault_utils_.into());
-        
-        require(
-            vault_storage.is_asset_whitelisted(asset),
-            Error::VaultAssetNotWhitelisted
-        );
-
-        vault_storage.write_use_swap_pricing(true);
-
-        let rusd = vault_storage.get_rusd();
-
-        let rusd_amount = _transfer_in(rusd, vault_storage_).as_u256();
-        require(rusd_amount > 0, Error::VaultInvalidRusdAmount);
-
-        vault_utils.update_cumulative_funding_rate(asset, asset);
-
-        let redemption_amount = vault_utils.get_redemption_amount(asset, rusd_amount);
-        require(redemption_amount > 0, Error::VaultInvalidRedemptionAmount);
-
-        vault_utils.decrease_rusd_amount(asset, rusd_amount);
-        vault_utils.decrease_pool_amount(asset, redemption_amount);
-
-        // require rusd_amount to be less than u64::max
-        require(
-            rusd_amount < u64::max().as_u256(),
-            Error::VaultInvalidRUSDBurnAmountGtU64Max
-        );
-
-        let _amount = u64::try_from(rusd_amount).unwrap();
-
-        abi(RUSD, vault_storage.get_rusd_contr().into()).burn{
-            // @TODO: this is prob a buggy implementation of the RUSD native asset? 
-            asset_id: rusd.into(),
-            coins: _amount
-        }(
-            Account::from(ContractId::this()),
-            _amount
-        );
-
-        // the _transferIn call increased the value of tokenBalances[rusd]
-        // usually decreases in token balances are synced by calling _transferOut
-        // however, for UDFG, the assets are burnt, so _updateTokenBalance should
-        // be manually called to record the decrease in assets
-        _update_asset_balance(rusd);
-
-        let fee_basis_points = _get_sell_rusd_fee_basis_points(
+        _sell_rusd(
             asset,
-            rusd_amount,
-        );
-        let amount_out = _collect_swap_fees(
-            asset, 
-            u64::try_from(redemption_amount).unwrap(), 
-            u64::try_from(fee_basis_points).unwrap(), 
-            vault_storage_,
-            vault_utils_,
-        );
-        require(amount_out > 0, Error::VaultInvalidAmountOut);
-
-        _transfer_out(asset, amount_out, receiver, vault_storage_);
-
-        log(SellRUSD {
-            account: receiver,
-            asset,
-            rusd_amount,
-            asset_amount: amount_out,
-            fee_basis_points,
-        });
-
-        vault_storage.write_use_swap_pricing(false);
-
-        amount_out.as_u256()
+            receiver,
+            storage.vault_storage.read(),
+            storage.vault_utils.read()
+        )
     }
 
     #[payable]
@@ -449,56 +286,16 @@ fn _only_gov() {
     require(get_sender() == storage.gov.read(), Error::VaultForbiddenNotGov);
 }
 
-#[storage(read)]
-fn _validate_manager() {
-    let vault_storage = abi(VaultStorage, storage.vault_storage.read().into());
+#[storage(read, write)]
+fn _initialize(
+    gov: Account,
+    vault_utils: ContractId,
+    vault_storage: ContractId,
+) {
+    require(!storage.is_initialized.read(), Error::VaultAlreadyInitialized);
+    storage.is_initialized.write(true);
 
-    if vault_storage.get_in_manager_mode() {
-        require(
-            vault_storage.get_is_manager(get_sender()),
-            Error::VaultForbiddenNotManager
-        );
-    }
-}
-
-#[storage(read)]
-fn _update_asset_balance(asset: AssetId) {
-    let vault_storage = abi(VaultStorage, storage.vault_storage.read().into());
-
-    let next_balance = balance_of(ContractId::this(), asset);
-    vault_storage.write_asset_balance(asset, next_balance);
-}
-
-#[storage(read)]
-fn _get_buy_rusd_fee_basis_points(
-    asset: AssetId,
-    rusd_amount: u256,
-) -> u256 {
-    let vault_utils = abi(VaultUtils, storage.vault_utils.read().into());
-    let vault_storage = abi(VaultStorage, storage.vault_storage.read().into());
-
-    vault_utils.get_fee_basis_points(
-        asset,
-        rusd_amount,
-        vault_storage.get_mint_burn_fee_basis_points().as_u256(),
-        vault_storage.get_tax_basis_points().as_u256(),
-        true
-    )
-}
-
-#[storage(read)]
-fn _get_sell_rusd_fee_basis_points(
-    asset: AssetId,
-    rusd_amount: u256
-) -> u256 {
-    let vault_utils = abi(VaultUtils, storage.vault_utils.read().into());
-    let vault_storage = abi(VaultStorage, storage.vault_storage.read().into());
-
-    vault_utils.get_fee_basis_points(
-        asset,
-        rusd_amount,
-        vault_storage.get_mint_burn_fee_basis_points().as_u256(),
-        vault_storage.get_tax_basis_points().as_u256(),
-        false
-    )
+    storage.gov.write(gov);
+    storage.vault_utils.write(vault_utils);
+    storage.vault_storage.write(vault_storage);
 }

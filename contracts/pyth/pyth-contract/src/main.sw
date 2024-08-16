@@ -2,7 +2,7 @@ contract;
 
 use std::{
     asset_id::AssetId,
-    block::timestamp,
+    block::{timestamp as tai64_timestamp},
     bytes::Bytes,
     call_frames::msg_asset_id,
     constants::{
@@ -299,7 +299,7 @@ fn ema_price_no_older_than(time_period: u64, price_feed_id: PriceFeedId) -> Pric
     let price = ema_price_unsafe(price_feed_id);
 
     require(
-        difference(timestamp(), price.publish_time) <= time_period,
+        difference(tai64_timestamp(), price.publish_time) <= time_period,
         PythError::OutdatedPrice,
     );
 
@@ -318,7 +318,7 @@ fn ema_price_unsafe(price_feed_id: PriceFeedId) -> Price {
 fn price_no_older_than(time_period: u64, price_feed_id: PriceFeedId) -> Price {
     let price = price_unsafe(price_feed_id);
     require(
-        difference(timestamp(), price.publish_time) <= time_period,
+        difference(tai64_timestamp(), price.publish_time) <= time_period,
         PythError::OutdatedPrice,
     );
 
@@ -670,7 +670,7 @@ fn submit_new_guardian_set(encoded_vm: Bytes) {
     let current_guardian_set = storage.wormhole_guardian_sets.get(current_guardian_set_index).try_read();
     if current_guardian_set.is_some() {
         let mut current_guardian_set = current_guardian_set.unwrap();
-        current_guardian_set.expiration_time = timestamp() + 86400;
+        current_guardian_set.expiration_time = tai64_timestamp() + 86400;
         storage
             .wormhole_guardian_sets
             .insert(current_guardian_set_index, current_guardian_set);

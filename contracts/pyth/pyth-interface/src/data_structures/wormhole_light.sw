@@ -10,7 +10,7 @@ use std::{
         u32::*,
     },
     b512::B512,
-    block::timestamp,
+    block::{timestamp as tai64_timestamp},
     bytes::Bytes,
     constants::ZERO_B256,
     hash::{
@@ -318,7 +318,7 @@ impl WormholeVM {
         require(
             guardian_set_index == current_guardian_set_index && (guardian_set
                     .expiration_time == 0 || guardian_set
-                    .expiration_time > timestamp()),
+                    .expiration_time > tai64_timestamp()),
             WormholeError::InvalidGuardianSet,
         );
         let signers_length = encoded_vm.get(index);

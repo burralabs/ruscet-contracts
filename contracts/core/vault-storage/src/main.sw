@@ -4,6 +4,7 @@ contract;
 mod constants;
 mod events;
 mod errors;
+mod internal;
 
 /*
 __     __          _ _     ____  _                             
@@ -41,6 +42,7 @@ use core_interfaces::{
 use constants::*;
 use errors::*;
 use events::*;
+use internal::*;
 
 storage {
     // gov is not restricted to an `Address` (EOA) or a `Contract` (external)
@@ -250,13 +252,17 @@ impl VaultStorage for Contract {
         has_dynamic_fees: bool,
     ) {
         _only_gov();
-        require(tax_basis_points <= MAX_FEE_BASIS_POINTS, Error::VaultStorageInvalidTaxBasisPoints);
-        require(stable_tax_basis_points <= MAX_FEE_BASIS_POINTS, Error::VaultStorageInvalidStableTaxBasisPoints);
-        require(mint_burn_fee_basis_points <= MAX_FEE_BASIS_POINTS, Error::VaultStorageInvalidMintBurnFeeBasisPoints);
-        require(swap_fee_basis_points <= MAX_FEE_BASIS_POINTS, Error::VaultStorageInvalidSwapFeeBasisPoints);
-        require(stable_swap_fee_basis_points <= MAX_FEE_BASIS_POINTS, Error::VaultStorageInvalidStableSwapFeeBasisPoints);
-        require(margin_fee_basis_points <= MAX_FEE_BASIS_POINTS, Error::VaultStorageInvalidMarginFeeBasisPoints);
-        require(liquidation_fee_usd <= MAX_LIQUIDATION_FEE_USD, Error::VaultStorageInvalidLiquidationFeeUsd);
+        _verify_fees(
+            tax_basis_points,
+            stable_tax_basis_points,
+            mint_burn_fee_basis_points,
+            swap_fee_basis_points,
+            stable_swap_fee_basis_points,
+            margin_fee_basis_points,
+            liquidation_fee_usd,
+            min_profit_time,
+            has_dynamic_fees,
+        );
 
         storage.tax_basis_points.write(tax_basis_points);
         storage.stable_tax_basis_points.write(stable_tax_basis_points);
@@ -267,7 +273,7 @@ impl VaultStorage for Contract {
         storage.liquidation_fee_usd.write(liquidation_fee_usd);
         storage.min_profit_time.write(min_profit_time);
         storage.has_dynamic_fees.write(has_dynamic_fees);
-
+ 
         log(SetFees {
             tax_basis_points,
             stable_tax_basis_points,
@@ -288,7 +294,6 @@ impl VaultStorage for Contract {
         stable_funding_rate_factor: u64,
     ) {
         _only_gov();
-        require(funding_interval >= MIN_FUNDING_RATE_INTERVAL, Error::VaultStorageInvalidFundingInterval);
         require(funding_rate_factor <= MAX_FUNDING_RATE_FACTOR, Error::VaultStorageInvalidFundingRateFactor);
         require(stable_funding_rate_factor <= MAX_FUNDING_RATE_FACTOR, Error::VaultStorageInvalidStableFundingRateFactor);
 
@@ -346,17 +351,6 @@ impl VaultStorage for Contract {
             is_stable,
             is_shortable
         });
-
-        // validate pricefeed
-        // abi(
-        //     VaultPricefeed, 
-        //     storage.pricefeed_provider.read().into()
-        // ).get_price(
-        //     asset,
-        //     true,
-        //     false,
-        //     false
-        // );
     }
 
     #[storage(read, write)]
@@ -371,14 +365,13 @@ impl VaultStorage for Contract {
         // `asset_weights` is guaranteed to have a value, hence no need to gracefully unwrap
         storage.total_asset_weights.write(storage.total_asset_weights.read() - storage.asset_weights.get(asset).read());
 
-        let mut _r = false;
-        _r = storage.whitelisted_assets.remove(asset);
-        _r = storage.asset_decimals.remove(asset);
-        _r = storage.asset_weights.remove(asset);
-        _r = storage.min_profit_basis_points.remove(asset);
-        _r = storage.max_rusd_amounts.remove(asset);
-        _r = storage.stable_assets.remove(asset);
-        _r = storage.shortable_assets.remove(asset);
+        storage.whitelisted_assets.remove(asset);
+        storage.asset_decimals.remove(asset);
+        storage.asset_weights.remove(asset);
+        storage.min_profit_basis_points.remove(asset);
+        storage.max_rusd_amounts.remove(asset);
+        storage.stable_assets.remove(asset);
+        storage.shortable_assets.remove(asset);
 
         storage.whitelisted_asset_count.write(storage.whitelisted_asset_count.read() - 1);
 

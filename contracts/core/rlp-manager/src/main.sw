@@ -14,7 +14,6 @@ mod errors;
 mod constants;
 
 use std::{
-    block::timestamp,
     call_frames::msg_asset_id,
     context::*,
     revert::require,
@@ -34,6 +33,7 @@ use asset_interfaces::{
     rusd::RUSD
 };
 use helpers::{
+    time::get_unix_timestamp,
     math::*,
     context::*,
     utils::*,
@@ -362,7 +362,7 @@ fn _add_liquidity(
         Error::RLPManagerInsufficientRLPOutput
     );
 
-    storage.last_added_at.insert(account, timestamp());
+    storage.last_added_at.insert(account, get_unix_timestamp());
 
     // @TODO: potential revert here
     rlp.mint(account, u64::try_from(mint_amount).unwrap());
@@ -391,7 +391,7 @@ fn _remove_liquidity(
     require(rlp_amount > 0, Error::RLPManagerInvalidRlpAmount);
     require(
         storage.last_added_at.get(account).try_read().unwrap_or(0) + storage.cooldown_duration.read() 
-            <= timestamp(),
+            <= get_unix_timestamp(),
         Error::RLPManagerCooldownDurationNotYetPassed
     );
 

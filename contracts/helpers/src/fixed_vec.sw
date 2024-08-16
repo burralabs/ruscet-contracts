@@ -3,24 +3,18 @@ library;
 
 use ::utils::ZERO_ASSET;
 
-pub struct FixedVecAssetIdSize5 {
+pub struct FixedVecAssetIdSize2 {
     len: u64,
     item0: AssetId,
     item1: AssetId,
-    item2: AssetId,
-    item3: AssetId,
-    item4: AssetId,
 }
 
-impl FixedVecAssetIdSize5 {
+impl FixedVecAssetIdSize2 {
     pub fn default() -> Self {
-        FixedVecAssetIdSize5 {
+        FixedVecAssetIdSize2 {
             len: 0,
             item0: ZERO_ASSET,
             item1: ZERO_ASSET,
-            item2: ZERO_ASSET,
-            item3: ZERO_ASSET,
-            item4: ZERO_ASSET,
         }
     }
 
@@ -28,9 +22,6 @@ impl FixedVecAssetIdSize5 {
         match index {
             0 => self.item0,
             1 => self.item1,
-            2 => self.item2,
-            3 => self.item3,
-            4 => self.item4,
             _ => revert(0),
         }
     }
@@ -43,9 +34,6 @@ impl FixedVecAssetIdSize5 {
         match self.len {
             0 => self.item0 = item,
             1 => self.item1 = item,
-            2 => self.item2 = item,
-            3 => self.item3 = item,
-            4 => self.item4 = item,
             _ => revert(0),
         }
         self.len += 1;
@@ -63,24 +51,6 @@ impl FixedVecAssetIdSize5 {
                 vec.push(self.item0);
                 vec.push(self.item1);
             },
-            3 => {
-                vec.push(self.item0);
-                vec.push(self.item1);
-                vec.push(self.item2);
-            },
-            4 => {
-                vec.push(self.item0);
-                vec.push(self.item1);
-                vec.push(self.item2);
-                vec.push(self.item3);
-            },
-            5 => {
-                vec.push(self.item0);
-                vec.push(self.item1);
-                vec.push(self.item2);
-                vec.push(self.item3);
-                vec.push(self.item4);
-            },
             _ => revert(0),
         }
 
@@ -90,13 +60,10 @@ impl FixedVecAssetIdSize5 {
     pub fn from_vec(vec: Vec<AssetId>) -> Self {
         let _len = vec.len();
 
-        let (mut len, mut item0, mut item1, mut item2, mut item3, mut item4) = (
+        let (mut len, mut item0, mut item1) = (
             0,
             ZERO_ASSET,
             ZERO_ASSET,
-            ZERO_ASSET,
-            ZERO_ASSET,
-            ZERO_ASSET
         );
 
         match _len {
@@ -110,37 +77,13 @@ impl FixedVecAssetIdSize5 {
                 item1 = vec.get(1).unwrap();
                 len = 2;
             },
-            3 => {
-                item0 = vec.get(0).unwrap();
-                item1 = vec.get(1).unwrap();
-                item2 = vec.get(2).unwrap();
-                len = 3;
-            },
-            4 => {
-                item0 = vec.get(0).unwrap();
-                item1 = vec.get(1).unwrap();
-                item2 = vec.get(2).unwrap();
-                item3 = vec.get(3).unwrap();
-                len = 4;
-            },
-            5 => {
-                item0 = vec.get(0).unwrap();
-                item1 = vec.get(1).unwrap();
-                item2 = vec.get(2).unwrap();
-                item3 = vec.get(3).unwrap();
-                item4 = vec.get(4).unwrap();
-                len = 5;
-            },
             _ => revert(0),
         }
 
-        FixedVecAssetIdSize5 {
+        FixedVecAssetIdSize2 {
             len,
             item0,
             item1,
-            item2,
-            item3,
-            item4
         }
     }
 }

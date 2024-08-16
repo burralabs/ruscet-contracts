@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 library;
 
+pub mod time;
 pub mod context;
 pub mod transfer;
 pub mod math;

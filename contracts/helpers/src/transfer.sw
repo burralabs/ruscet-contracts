@@ -2,7 +2,11 @@
 library;
 
 /*
-    `Account` is a unified type for cases where we don't care about the `Identity` of the sender
+ _____                     __           
+|_   _| __ __ _ _ __  ___ / _| ___ _ __ 
+  | || '__/ _` | '_ \/ __| |_ / _ \ '__|
+  | || | | (_| | | | \__ \  _|  __/ |
+  |_||_|  \__,_|_| |_|___/_|  \___|_|
 */ 
 use std::{
     auth::msg_sender,

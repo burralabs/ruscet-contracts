@@ -19,7 +19,6 @@ pub enum Error {
     VaultStorageInvalidMarginFeeBasisPoints: (),
     VaultStorageInvalidLiquidationFeeUsd: (),
 
-    VaultStorageInvalidFundingInterval: (),
     VaultStorageInvalidFundingRateFactor: (),
     VaultStorageInvalidStableFundingRateFactor: (),
 

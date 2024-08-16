@@ -1,9 +1,0 @@
-[project]
-authors = ["Burra Labs @theausicist", "@xburralabs"]
-entry = "main.sw"
-license = "Apache-2.0"
-name = "pyth-update-price-position-router"
-
-[dependencies]
-helpers = { path = "../../contracts/helpers" }
-core_interfaces = { path = "../../contracts/core/interfaces" }

@@ -167,14 +167,6 @@ abi VaultUtils {
     fn get_redemption_collateral_usd(asset: AssetId) -> u256;
 
     #[storage(read)]
-    fn get_position_leverage(
-        account: Account,
-        collateral_asset: AssetId,
-        index_asset: AssetId,
-        is_long: bool,
-    ) -> u256;
-
-    #[storage(read)]
     fn get_fee_basis_points(
         asset: AssetId,
         rusd_delta: u256,
