@@ -771,7 +771,6 @@ pub fn _sell_rusd(
     let _amount = u64::try_from(rusd_amount).unwrap();
 
     abi(RUSD, vault_storage.get_rusd_contr().into()).burn{
-        // @TODO: this is prob a buggy implementation of the RUSD native asset? 
         asset_id: rusd.into(),
         coins: _amount
     }(

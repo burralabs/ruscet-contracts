@@ -53,8 +53,6 @@ storage {
     decimals: u8 = 8,
 
     balances: StorageMap<Account, u64> = StorageMap::<Account, u64> {},
-    allowances: StorageMap<Account, StorageMap<Account, u64>> 
-        = StorageMap::<Account, StorageMap<Account, u64>> {},
     total_supply: u64 = 0,
     non_staking_supply: u64 = 0,
 
@@ -77,7 +75,7 @@ impl RUSD for Contract {
         );
         storage.is_initialized.write(true);
 
-        storage.name.write_slice(String::from_ascii_str("USD Gambit"));
+        storage.name.write_slice(String::from_ascii_str("Ruscet USD"));
         storage.symbol.write_slice(String::from_ascii_str("RUSD"));
         
         storage.gov.write(get_sender());
@@ -96,16 +94,6 @@ impl RUSD for Contract {
     fn set_gov(new_gov: Account) {
         _only_gov();
         storage.gov.write(new_gov);
-    }
-
-    #[storage(read, write)]
-    fn set_info(
-        name: String,
-        symbol: String
-    ) {
-        _only_gov();
-        storage.name.write_slice(name);
-        storage.symbol.write_slice(symbol);
     }
 
     #[storage(read, write)]
@@ -224,8 +212,6 @@ impl RUSD for Contract {
         _burn(account, amount);
     }
 
-
-
     /*
           ____ __     ___               
          / / / \ \   / (_) _____      __
@@ -267,14 +253,6 @@ impl RUSD for Contract {
     }
 
     #[storage(read)]
-    fn allowance(
-        who: Account,
-        spender: Account
-    ) -> u64 {
-        storage.allowances.get(who).get(spender).try_read().unwrap_or(0)
-    }
-
-    #[storage(read)]
     fn total_supply() -> u64 {
         storage.total_supply.read()
     }
@@ -291,12 +269,6 @@ impl RUSD for Contract {
        / / /   |  __/| |_| | |_) | | | (__ 
       /_/_/    |_|    \__,_|_.__/|_|_|\___|
     */
-    #[storage(read, write)]
-    fn approve(spender: Account, amount: u64) -> bool {
-        _approve(get_sender(), spender, amount);
-        true
-    }
-
     #[payable]
     #[storage(read, write)]
     fn transfer(
@@ -304,21 +276,6 @@ impl RUSD for Contract {
         amount: u64
     ) -> bool {
         _transfer(get_sender(), to, amount);
-        true
-    }
-
-    #[storage(read, write)]
-    fn transfer_on_behalf_of(
-        who: Account,
-        to: Account,
-        amount: u64,
-    ) -> bool {
-        let sender_allowance = storage.allowances.get(who).get(get_sender()).try_read().unwrap_or(0);
-        require(sender_allowance >= amount, Error::YieldAssetInsufficientAllowance);
-
-        _approve(who, get_sender(), sender_allowance - amount);
-        _transfer(who, to, amount);
-
         true
     }
 }
@@ -454,18 +411,6 @@ fn _transfer(
         recipient,
         amount
     );
-}
-
-#[storage(read, write)]
-fn _approve(
-    owner: Account,
-    spender: Account, 
-    amount: u64
-) {
-    require(owner.non_zero(), Error::YieldAssetApproveFromZeroAccount);
-    require(spender.non_zero(), Error::YieldAssetApproveToZeroAccount);
-
-    storage.allowances.get(get_sender()).insert(spender, amount);
 }
 
 #[storage(read)]

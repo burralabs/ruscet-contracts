@@ -4,21 +4,7 @@
     "main": "node.js",
     "license": "Apache-2.0",
     "scripts": {
-        "deploy": "yarn gen:types && hardhat run deployment/deploy.ts && yarn populate:indexer",
-        "gen:types": "rm -rf ./types && yarn gen:contract:types && yarn gen:script:types && yarn process:types",
-        "gen:contract:types": "sh ./generate-contract-types.sh",
-        "gen:script:types": "sh ./generate-script-types.sh",
-        "process:types": "python3 utils/process_types.py && python3 utils/copy_abis.py",
-        "populate:indexer": "python3 utils/populate_indexer_config.py",
-        "test": "hardhat test",
-        "ts": "hardhat test test/core/PositionRouter.test.ts",
-        "clean": "find ./contracts -type d -name out -exec rm -rf '{}' \\;",
-        "p": "prettier --write .",
-        "[": "prettier --write .",
-        "prepare": "husky install",
-        "build": "forc build --release --log-level 4",
-        "typegen": "npm run gen:types",
-        "postinstall": "patch-package"
+        "build": "forc build --release --log-level 4"
     },
     "devDependencies": {
         "@nomiclabs/hardhat-ethers": "^2.2.3",

@@ -1,8 +1,0 @@
-[project]
-authors = ["@jasmcaus", "@xburralabs"]
-entry = "lib.sw"
-license = "Apache-2.0"
-name = "referrals_interfaces"
-
-[dependencies]
-helpers = { path = "../../helpers" }

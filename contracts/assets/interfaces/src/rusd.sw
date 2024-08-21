@@ -24,12 +24,6 @@ abi RUSD {
     fn set_gov(new_gov: Account);
 
     #[storage(read, write)]
-    fn set_info(
-        name: String,
-        symbol: String
-    );
-
-    #[storage(read, write)]
     fn set_yield_trackers(yield_trackers: Vec<ContractId>);
 
     #[storage(read, write)]
@@ -94,12 +88,6 @@ abi RUSD {
     fn staked_balance_of(who: Account) -> u64;
 
     #[storage(read)]
-    fn allowance(
-        who: Account,
-        spender: Account
-    ) -> u64;
-
-    #[storage(read)]
     fn total_supply() -> u64;
     
     #[storage(read)]
@@ -112,20 +100,10 @@ abi RUSD {
        / / /   |  __/| |_| | |_) | | | (__ 
       /_/_/    |_|    \__,_|_.__/|_|_|\___|
     */
-    #[storage(read, write)]
-    fn approve(spender: Account, amount: u64) -> bool;
-
     #[payable]
     #[storage(read, write)]
     fn transfer(
         to: Account,
         amount: u64
-    ) -> bool;
-
-    #[storage(read, write)]
-    fn transfer_on_behalf_of(
-        who: Account,
-        to: Account,
-        amount: u64,
     ) -> bool;
 }

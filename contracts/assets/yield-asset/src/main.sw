@@ -43,8 +43,6 @@ storage {
     decimals: u8 = 8,
 
     balances: StorageMap<Account, u64> = StorageMap::<Account, u64> {},
-    allowances: StorageMap<Account, StorageMap<Account, u64>> 
-        = StorageMap::<Account, StorageMap<Account, u64>> {},
     total_supply: u64 = 0,
     non_staking_supply: u64 = 0,
 
@@ -232,14 +230,6 @@ impl YieldAsset for Contract {
     }
 
     #[storage(read)]
-    fn allowance(
-        who: Account,
-        spender: Account
-    ) -> u64 {
-        storage.allowances.get(who).get(spender).try_read().unwrap_or(0)
-    }
-
-    #[storage(read)]
     fn total_staked() -> u64 {
         storage.total_supply.read() - storage.non_staking_supply.read()
     }
@@ -264,21 +254,6 @@ impl YieldAsset for Contract {
         amount: u64
     ) -> bool {
         _transfer(get_sender(), to, amount);
-        true
-    }
-
-    #[storage(read, write)]
-    fn transfer_on_behalf_of(
-        who: Account,
-        to: Account,
-        amount: u64,
-    ) -> bool {
-        let sender_allowance = storage.allowances.get(who).get(get_sender()).try_read().unwrap_or(0);
-        require(sender_allowance >= amount, Error::YieldAssetInsufficientAllowance);
-
-        _approve(who, get_sender(), sender_allowance - amount);
-        _transfer(who, to, amount);
-
         true
     }
 }
@@ -324,44 +299,6 @@ fn _mint(
     // sub-id: ZERO_B256
     mint_to(identity, ZERO, amount);
 }
-
-
-// @TODO: this is not used yet. Uncomment when contract inheritance is supported in Sway
-/*
-#[storage(read, write)]
-fn _burn(
-    account: Account,
-    amount: u64
-) {
-    require(account != ZERO_ACCOUNT, Error::YieldAssetBurnFromZeroAccount);
-
-    require(
-        msg_asset_id() == AssetId::new(ContractId::this(), ZERO),
-        Error::YieldAssetInvalidBurnAssetForwarded
-    );
-    require(
-        msg_amount() == amount,
-        Error::YieldAssetInvalidBurnAmountForwarded
-    );
-
-    _update_rewards(account);
-
-    let account_balance = storage.balances.get(account).try_read().unwrap_or(0);
-    require(account_balance >= amount, Error::YieldAssetBurnAmountExceedsBalance);
-
-    storage.balances.get(account).write(account_balance - amount);
-    storage.total_supply.write(storage.total_supply.read() - amount);
-
-    if storage.non_staking_accounts.get(account).try_read().unwrap_or(false) {
-        storage.non_staking_supply.write(
-            storage.non_staking_supply.read() - amount
-        );
-    }
-
-    // sub-id: ZERO_B256
-    burn(ZERO, amount);
-}
-*/
 
 #[payable]
 #[storage(read, write)]
@@ -413,18 +350,6 @@ fn _transfer(
         recipient,
         amount
     );
-}
-
-#[storage(read, write)]
-fn _approve(
-    owner: Account,
-    spender: Account, 
-    amount: u64
-) {
-    require(owner != ZERO_ACCOUNT, Error::YieldAssetApproveFromZeroAccount);
-    require(spender != ZERO_ACCOUNT, Error::YieldAssetApproveToZeroAccount);
-
-    storage.allowances.get(get_sender()).insert(spender, amount);
 }
 
 #[storage(read)]

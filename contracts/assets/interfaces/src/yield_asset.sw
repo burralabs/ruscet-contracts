@@ -85,12 +85,6 @@ abi YieldAsset {
     fn staked_balance_of(who: Account) -> u64;
 
     #[storage(read)]
-    fn allowance(
-        who: Account,
-        spender: Account
-    ) -> u64;
-
-    #[storage(read)]
     fn total_staked() -> u64;
 
     /*
@@ -100,20 +94,10 @@ abi YieldAsset {
        / / /   |  __/| |_| | |_) | | | (__ 
       /_/_/    |_|    \__,_|_.__/|_|_|\___|
     */
-    #[storage(read, write)]
-    fn approve(spender: Account, amount: u64) -> bool;
-
     #[payable]
     #[storage(read, write)]
     fn transfer(
         to: Account,
         amount: u64
-    ) -> bool;
-
-    #[storage(read, write)]
-    fn transfer_on_behalf_of(
-        who: Account,
-        to: Account,
-        amount: u64,
     ) -> bool;
 }

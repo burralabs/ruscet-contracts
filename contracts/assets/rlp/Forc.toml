@@ -1,9 +1,0 @@
-[project]
-authors = ["@jasmcaus", "@xburralabs"]
-entry = "main.sw"
-license = "Apache 2.0"
-name = "rlp"
-
-[dependencies]
-asset_interfaces = { path = "../interfaces" }
-helpers = { path = "../../helpers" }

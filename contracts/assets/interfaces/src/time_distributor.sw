@@ -1,15 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 library;
 
-use std::{
-    string::String,
-};
-
 use helpers::{
     context::Account,
 };
 
-abi RSCT {
+abi TimeDistributor {
     #[storage(read, write)]
     fn initialize();
 
@@ -24,7 +20,20 @@ abi RSCT {
     fn set_gov(new_gov: Account);
 
     #[storage(read, write)]
-    fn set_minter(minter: Account, is_active: bool);
+    fn set_assets_per_interval(
+        receiver: Account,
+        amount: u64
+    );
+
+    #[storage(read, write)]
+    fn update_last_distribution_time(receiver: Account);
+
+    #[storage(read, write)]
+    fn set_distribution(
+        receivers: Vec<Account>,
+        amounts: Vec<u64>,
+        reward_assets: Vec<AssetId>
+    );
 
     /*
           ____ __     ___               
@@ -33,25 +42,17 @@ abi RSCT {
        / / /     \ V / | |  __/\ V  V / 
       /_/_/       \_/  |_|\___| \_/\_/  
     */
-    fn get_id() -> AssetId;
+    #[storage(read)]
+    fn get_intervals(receiver: Account) -> u64;
 
     #[storage(read)]
-    fn id() -> String;
+    fn get_reward_asset(receiver: Account) -> AssetId;
 
     #[storage(read)]
-    fn name() -> String;
+    fn get_assets_per_interval(account: Account) -> u64;
 
     #[storage(read)]
-    fn symbol() -> String;
-
-    #[storage(read)]
-    fn decimals() -> u8;
-
-    #[storage(read)]
-    fn total_supply() -> u64;
-
-    #[storage(read)]
-    fn balance_of(who: Account) -> u64;
+    fn get_distribution_amount(receiver: Account) -> u64;
 
     /*
           ____  ____        _     _ _      
@@ -61,26 +62,5 @@ abi RSCT {
       /_/_/    |_|    \__,_|_.__/|_|_|\___|
     */
     #[storage(read, write)]
-    fn approve(spender: Account, amount: u64) -> bool;
-
-    #[payable]
-    #[storage(read, write)]
-    fn transfer(
-        to: Account,
-        amount: u64
-    ) -> bool;
-
-    #[storage(read, write)]
-    fn transfer_on_behalf_of(
-        who: Account,
-        to: Account,
-        amount: u64,
-    ) -> bool;
-
-    #[storage(read, write)]
-    fn mint(account: Account, amount: u64);
-
-    #[payable]
-    #[storage(read, write)]
-    fn burn(account: Account, amount: u64);
+    fn distribute() -> u64;
 }

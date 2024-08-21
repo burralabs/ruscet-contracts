@@ -6,4 +6,4 @@ name = "core_interfaces"
 
 [dependencies]
 helpers = { path = "../../helpers" }
-pyth_interface = { path = "../../pyth/pyth-interface" }
+pyth_interface = { git = "https://github.com/pyth-network/pyth-crosschain" }
