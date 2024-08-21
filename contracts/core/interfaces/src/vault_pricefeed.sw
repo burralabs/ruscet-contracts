@@ -4,10 +4,15 @@ library;
 use helpers::{
     context::*,
 };
+use std::bytes::Bytes;
+use pyth_interface::data_structures::price::*;
 
 abi VaultPricefeed {
     #[storage(read, write)]
-    fn initialize(gov: Account);
+    fn initialize(
+        gov: Account,
+        pyth_contract: ContractId
+    );
 
     /*
           ____     _       _           _       
@@ -16,6 +21,9 @@ abi VaultPricefeed {
        / / /    / ___ \ (_| | | | | | | | | | |
       /_/_/    /_/   \_\__,_|_| |_| |_|_|_| |_|                         
     */
+    #[storage(read, write)]
+    fn set_valid_time_period(valid_time_period: u64);
+
     #[storage(read, write)]
     fn set_adjustment(
         asset: AssetId,
@@ -26,15 +34,6 @@ abi VaultPricefeed {
     #[storage(read, write)]
     fn set_use_v2_pricing(use_v2_pricing: bool);
 
-    #[storage(read, write)]
-    fn set_is_amm_enabled(is_enabled: bool);
-
-    #[storage(read, write)]
-    fn set_is_secondary_price_enabled(is_enabled: bool);
-
-    #[storage(read, write)]
-    fn set_secondary_pricefeed(secondary_pricefeed: ContractId);
-    
     #[storage(read, write)]
     fn set_spread_basis_points(asset: AssetId, spread_basis_points: u64);
 
@@ -53,8 +52,7 @@ abi VaultPricefeed {
     #[storage(read, write)]
     fn set_asset_config(
         asset: AssetId,
-        pricefeed: ContractId,
-        price_decimals: u8,
+        pyth_pricefeed_id: PriceFeedId,
         is_strict_stable: bool
     );
 
@@ -66,6 +64,9 @@ abi VaultPricefeed {
       /_/_/       \_/  |_|\___| \_/\_/  
     */
     #[storage(read)]
+    fn get_valid_time_period();
+
+    #[storage(read)]
     fn get_adjustment_basis_points(asset: AssetId) -> u64;
 
     #[storage(read)]
@@ -76,7 +77,7 @@ abi VaultPricefeed {
         asset: AssetId,
         maximize: bool,
         include_amm_price: bool,
-        _use_swap_pricing: bool
+        use_swap_pricing: bool
     ) -> u256;
 
     #[storage(read)]
@@ -94,9 +95,6 @@ abi VaultPricefeed {
     ) -> u256;
 
     #[storage(read)]
-    fn get_latest_primary_price(asset: AssetId) -> u256;
-
-    #[storage(read)]
     fn get_primary_price(
         asset: AssetId,
         maximize: bool
@@ -109,11 +107,10 @@ abi VaultPricefeed {
        / / /   |  __/| |_| | |_) | | | (__ 
       /_/_/    |_|    \__,_|_.__/|_|_|\___|
     */
-    // this is just a helper method to update the price of an asset directly from VaultPricefeed
-    // this will be removed in the future when Pyth prices are supported on-chain
+    // this is purely a helper method for easier access within a script
+    // not restricted, because literally anyone can call this
+    // payable asset also not restricted because it's checked for within the Pyth contract
+    #[payable]
     #[storage(read)]
-    fn update_price(
-        asset: AssetId,
-        new_price: u256
-    );
+    fn update_pyth_price(update_data: Vec<Bytes>);
 }

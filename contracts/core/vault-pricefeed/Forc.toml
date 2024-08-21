@@ -1,5 +1,5 @@
 [project]
-authors = ["@jasmcaus", "@xburralabs"]
+authors = ["@theausicist", "@xburralabs"]
 entry = "main.sw"
 license = "Apache-2.0"
 name = "vault-pricefeed"
@@ -7,4 +7,4 @@ name = "vault-pricefeed"
 [dependencies]
 core_interfaces = { path = "../interfaces" }
 helpers = { path = "../../helpers" }
-interfaces = { path = "../../interfaces" }
+pyth_interface = { git = "https://github.com/pyth-network/pyth-crosschain" }
