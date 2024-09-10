@@ -18,7 +18,6 @@ use std::{
     context::*,
     revert::require,
     storage::storage_vec::*,
-    asset::*,
     math::*,
     hash::*
 };
@@ -557,30 +556,20 @@ fn _get_cumulative_funding_rates(asset: AssetId) -> u256 {
 #[storage(read)]
 fn _get_max_price(asset: AssetId) -> u256 {
     let vault_storage = abi(VaultStorage, storage.vault_storage.read().into());
-
     let vault_pricefeed = abi(VaultPricefeed, vault_storage.get_pricefeed_provider().into());
-    let include_amm_price = vault_storage.get_include_amm_price();
-    let use_swap_pricing = vault_storage.get_use_swap_pricing();
     vault_pricefeed.get_price(
         asset, 
         true,
-        include_amm_price,
-        use_swap_pricing
     )
 }
 
 #[storage(read)]
 fn _get_min_price(asset: AssetId) -> u256 {
     let vault_storage = abi(VaultStorage, storage.vault_storage.read().into());
-
     let vault_pricefeed = abi(VaultPricefeed, vault_storage.get_pricefeed_provider().into());
-    let include_amm_price = vault_storage.get_include_amm_price();
-    let use_swap_pricing = vault_storage.get_use_swap_pricing();
     vault_pricefeed.get_price(
         asset, 
         false,
-        include_amm_price,
-        use_swap_pricing
     )
 }
 
@@ -1067,8 +1056,6 @@ fn _increase_pool_amount(asset: AssetId, amount: u256) {
     let balance = balance_of(storage.vault.read(), asset);
 
     require(new_pool_amount <= balance.as_u256(), Error::VaultInvalidIncrease);
-
-    log(IncreasePoolAmount { asset, amount });
 }
 
 #[storage(read, write)]
@@ -1084,8 +1071,6 @@ fn _decrease_pool_amount(asset: AssetId, amount: u256) {
         _get_reserved_amounts(asset) <= new_pool_amount,
         Error::VaultReserveExceedsPool
     );
-
-    log(DecreasePoolAmount { asset, amount });
 }
 
 #[storage(read, write)]
@@ -1100,7 +1085,6 @@ fn _increase_rusd_amount(asset: AssetId, amount: u256) {
     if max_rusd_amount != 0 {
         require(new_rusd_amount <= max_rusd_amount, Error::VaultMaxRusdExceeded);
     }
-    log(IncreaseRusdAmount { asset, amount });
 }
 
 #[storage(read, write)]
@@ -1112,15 +1096,10 @@ fn _decrease_rusd_amount(asset: AssetId, amount: u256) {
     if value <= amount {
         storage.rusd_amounts.insert(asset, 0);
         log(WriteRusdAmount { asset, rusd_amount: 0 });
-        log(DecreaseRusdAmount {
-            asset,
-            amount: value,
-        });
     } else {
         let new_rusd_amount = value - amount;
         storage.rusd_amounts.insert(asset, new_rusd_amount);
         log(WriteRusdAmount { asset, rusd_amount: new_rusd_amount });
-        log(DecreaseRusdAmount { asset, amount });
     }
 }
 
@@ -1133,10 +1112,6 @@ fn _increase_guaranteed_usd(asset: AssetId, usd_amount: u256) {
     );
     
     log(WriteGuaranteedAmount  { asset, guaranteed_amount: new_guaranteed_amount });
-    log(IncreaseGuaranteedAmount {
-        asset,
-        amount: usd_amount,
-    });
 }
 
 #[storage(read, write)]
@@ -1148,10 +1123,6 @@ fn _decrease_guaranteed_usd(asset: AssetId, usd_amount: u256) {
     );
 
     log(WriteGuaranteedAmount  { asset, guaranteed_amount: new_guaranteed_amount });
-    log(DecreaseGuaranteedAmount {
-        asset,
-        amount: usd_amount,
-    });
 }
 
 #[storage(read, write)]
@@ -1167,8 +1138,6 @@ fn _increase_reserved_amount(asset: AssetId, amount: u256) {
         _get_reserved_amounts(asset) <= _get_pool_amounts(asset),
         Error::VaultReserveExceedsPool
     );
-    
-    log(IncreaseReservedAmount { asset, amount });
 }
 
 #[storage(read, write)]
@@ -1184,7 +1153,6 @@ fn _decrease_reserved_amount(asset: AssetId, amount: u256) {
     );
 
     log(WriteReservedAmount  { asset, reserved_amount: new_reserved_amount });
-    log(DecreaseReservedAmount { asset, amount });
 }
 
 #[storage(write)]

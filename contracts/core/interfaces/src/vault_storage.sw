@@ -58,18 +58,6 @@ abi VaultStorage {
     fn set_manager(manager: Account, is_manager: bool);
 
     #[storage(write)]
-    fn set_in_manager_mode(mode: bool);
-
-    #[storage(write)]
-    fn set_in_private_liquidation_mode(mode: bool);
-
-    #[storage(write)]
-    fn set_is_swap_enabled(is_swap_enabled: bool);
-
-    #[storage(write)]
-    fn set_is_leverage_enabled(is_swap_enabled: bool);
-
-    #[storage(write)]
     fn set_buffer_amount(asset: AssetId, buffer_amount: u256);
 
     #[storage(write)]
@@ -216,28 +204,10 @@ abi VaultStorage {
     fn get_max_rusd_amount(asset: AssetId) -> u256;
 
     #[storage(read)]
-    fn is_swap_enabled() -> bool;
-
-    #[storage(read)]
-    fn is_leverage_enabled() -> bool;
-
-    #[storage(read)]
-    fn get_include_amm_price() -> bool;
-
-    #[storage(read)]
-    fn get_use_swap_pricing() -> bool;
-
-    #[storage(read)]
     fn get_max_leverage() -> u64;
 
     #[storage(read)]
     fn get_is_manager(account: Account) -> bool;
-
-    #[storage(read)]
-    fn get_in_manager_mode() -> bool;
-
-    #[storage(read)]
-    fn in_private_liquidation_mode() -> bool;
     
     #[storage(read)]
     fn get_asset_balance(asset: AssetId) -> u64;
@@ -269,12 +239,6 @@ abi VaultStorage {
     */
     #[storage(write)]
     fn write_max_rusd_amount(asset: AssetId, max_rusd_amount: u256);
-
-    #[storage(write)]
-    fn write_include_amm_price(include_amm_price: bool);
-
-    #[storage(write)]
-    fn write_use_swap_pricing(use_swap_pricing: bool);
 
     #[storage(write)]
     fn write_asset_balance(asset: AssetId, bal: u64);

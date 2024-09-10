@@ -191,14 +191,12 @@ impl VaultPricefeed for Contract {
     #[storage(read)]
     fn get_price(
         asset: AssetId,
-        maximize: bool,
-        include_amm_price: bool,
-        _use_swap_pricing: bool
+        maximize: bool
     ) -> u256 {
         let mut price = if storage.use_v2_pricing.read() {
-            _get_price_v2(asset, maximize, include_amm_price)
+            _get_price_v2(asset, maximize, false)
         } else {
-            _get_price_v1(asset, maximize, include_amm_price)
+            _get_price_v1(asset, maximize, false)
         };
 
         let adjustment_bps = storage.adjustment_basis_points.get(asset)

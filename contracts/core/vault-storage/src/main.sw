@@ -52,17 +52,10 @@ storage {
     is_write_authorized: StorageMap<Account, bool> = StorageMap::<Account, bool> {},
 
     is_initialized: bool = false,
-    include_amm_price: bool = true,
-    is_swap_enabled: bool = true,
-    is_leverage_enabled: bool = true,
-    use_swap_pricing: bool = true,
+
     max_leverage: u64 = 50 * 10_000, // 50%
     has_dynamic_fees: bool = false,
     min_profit_time: u64 = 0,
-
-    // Admin
-    in_manager_mode: bool = false,
-    in_private_liquidation_mode: bool = false,
 
     // Fees
     liquidation_fee_usd: u256 = 0,
@@ -193,30 +186,6 @@ impl VaultStorage for Contract {
     }
 
     #[storage(write)]
-    fn set_in_manager_mode(mode: bool) {
-        _only_gov();
-        storage.in_manager_mode.write(mode);
-    }
-
-    #[storage(write)]
-    fn set_in_private_liquidation_mode(mode: bool) {
-        _only_gov();
-        storage.in_private_liquidation_mode.write(mode);
-    }
-
-    #[storage(write)]
-    fn set_is_swap_enabled(is_swap_enabled: bool) {
-        _only_gov();
-        storage.is_swap_enabled.write(is_swap_enabled);
-    }
-
-    #[storage(write)]
-    fn set_is_leverage_enabled(is_leverage_enabled: bool) {
-        _only_gov();
-        storage.is_leverage_enabled.write(is_leverage_enabled);
-    }
-
-    #[storage(write)]
     fn set_buffer_amount(asset: AssetId, buffer_amount: u256) {
         _only_gov();
         storage.buffer_amounts.insert(asset, buffer_amount);
@@ -259,9 +228,7 @@ impl VaultStorage for Contract {
             swap_fee_basis_points,
             stable_swap_fee_basis_points,
             margin_fee_basis_points,
-            liquidation_fee_usd,
-            min_profit_time,
-            has_dynamic_fees,
+            liquidation_fee_usd
         );
 
         storage.tax_basis_points.write(tax_basis_points);
@@ -547,26 +514,6 @@ impl VaultStorage for Contract {
     }
 
     #[storage(read)]
-    fn is_swap_enabled() -> bool {
-        storage.is_swap_enabled.read()
-    }
-
-    #[storage(read)]
-    fn is_leverage_enabled() -> bool {
-        storage.is_leverage_enabled.read()
-    }
-
-    #[storage(read)]
-    fn get_include_amm_price() -> bool {
-        storage.include_amm_price.read()
-    }
-
-    #[storage(read)]
-    fn get_use_swap_pricing() -> bool {
-        storage.use_swap_pricing.read()
-    }
-
-    #[storage(read)]
     fn get_max_leverage() -> u64 {
         storage.max_leverage.read()
     }
@@ -576,16 +523,6 @@ impl VaultStorage for Contract {
         storage.is_manager.get(account).try_read().unwrap_or(false)
     }
 
-    #[storage(read)]
-    fn get_in_manager_mode() -> bool {
-        storage.in_manager_mode.read()
-    }
-
-    #[storage(read)]
-    fn in_private_liquidation_mode() -> bool {
-        storage.in_private_liquidation_mode.read()
-    }
-    
     #[storage(read)]
     fn get_asset_balance(asset: AssetId) -> u64 {
         storage.asset_balances.get(asset).try_read().unwrap_or(0)
@@ -631,20 +568,6 @@ impl VaultStorage for Contract {
     #[storage(write)]
     fn set_router(router: Account, is_active: bool) {
         storage.approved_routers.get(get_sender()).insert(router, is_active);
-    }
-
-    #[storage(write)]
-    fn write_include_amm_price(include_amm_price: bool) {
-        _only_write_authorized();
-
-        storage.include_amm_price.write(include_amm_price);
-    }
-
-    #[storage(write)]
-    fn write_use_swap_pricing(use_swap_pricing: bool) {
-        _only_write_authorized();
-
-        storage.use_swap_pricing.write(use_swap_pricing);
     }
 
     #[storage(write)]

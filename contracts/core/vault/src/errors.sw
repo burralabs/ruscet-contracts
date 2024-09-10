@@ -6,6 +6,7 @@ pub enum Error {
     VaultAlreadyInitialized: (),
     VaultForbiddenNotManager: (),
     VaultInvalidMsgCaller: (),
+    VaultReentrantCall: (),
 
     VaultReceiverCannotBeZero: (),
 
@@ -19,8 +20,6 @@ pub enum Error {
 
     VaultInvalidMintAmountGtU64Max: (),
     VaultInvalidRUSDBurnAmountGtU64Max: (),
-
-    VaultSwapsNotEnabled: (),
 
     VaultPoolAmountLtBuffer: (),
 
@@ -39,8 +38,6 @@ pub enum Error {
     
     VaultInvalidPosition: (),
     VaultInvalidPositionSize: (),
-
-    VaultLeverageNotEnabled: (),
 
     VaultLongCollateralIndexAssetsMismatch: (),
     VaultLongCollateralAssetNotWhitelisted: (),

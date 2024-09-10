@@ -359,14 +359,3 @@ pub fn _get_swap_fee_basis_points(
         fee_basis_points_1
     }
 }
-
-pub fn _validate_manager(vault_storage_: ContractId) {
-    let vault_storage = abi(VaultStorage, vault_storage_.into());
-
-    if vault_storage.get_in_manager_mode() {
-        require(
-            vault_storage.get_is_manager(get_sender()),
-            Error::VaultForbiddenNotManager
-        );
-    }
-}

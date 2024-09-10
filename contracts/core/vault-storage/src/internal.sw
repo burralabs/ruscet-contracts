@@ -11,9 +11,7 @@ pub fn _verify_fees(
     swap_fee_basis_points: u64,
     stable_swap_fee_basis_points: u64,
     margin_fee_basis_points: u64,
-    liquidation_fee_usd: u256,
-    min_profit_time: u64,
-    has_dynamic_fees: bool,
+    liquidation_fee_usd: u256
 ) {
     require(tax_basis_points <= MAX_FEE_BASIS_POINTS, Error::VaultStorageInvalidTaxBasisPoints);
     require(stable_tax_basis_points <= MAX_FEE_BASIS_POINTS, Error::VaultStorageInvalidStableTaxBasisPoints);

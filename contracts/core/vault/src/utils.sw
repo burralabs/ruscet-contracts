@@ -48,10 +48,6 @@ pub fn _increase_position(
     let vault_storage = abi(VaultStorage, vault_storage_.into());
     let vault_utils = abi(VaultUtils, vault_utils_.into());
 
-    require(
-        vault_storage.is_leverage_enabled(),
-        Error::VaultLeverageNotEnabled
-    );
     _validate_router(account, vault_storage_);
     _validate_assets(collateral_asset, index_asset, is_long, vault_storage_);
 
@@ -511,15 +507,10 @@ pub fn _liquidate_position(
     let vault_storage = abi(VaultStorage, vault_storage_.into());
     let vault_utils = abi(VaultUtils, vault_utils_.into());
 
-    if vault_storage.in_private_liquidation_mode() {
-        require(
-            vault_storage.is_liquidator(get_sender()),
-            Error::VaultInvalidLiquidator
-        );
-    }
-
-    // set includeAmmPrice to false to prevent manipulated liquidations
-    vault_storage.write_include_amm_price(false);
+    require(
+        vault_storage.is_liquidator(get_sender()),
+        Error::VaultInvalidLiquidator
+    );
 
     vault_utils.update_cumulative_funding_rate(collateral_asset, index_asset);
 
@@ -562,7 +553,6 @@ pub fn _liquidate_position(
             vault_storage_,
             vault_utils_
         );
-        vault_storage.write_include_amm_price(true);
         return;
     }
 
@@ -630,8 +620,6 @@ pub fn _liquidate_position(
         fee_receiver,
         vault_storage_
     );
-
-    vault_storage.write_include_amm_price(true);
 }
 
 pub fn _swap(
@@ -650,10 +638,6 @@ pub fn _swap(
     let vault_utils = abi(VaultUtils, vault_utils_.into());
 
     require(
-        vault_storage.is_swap_enabled(),
-        Error::VaultSwapsNotEnabled
-    );
-    require(
         vault_storage.is_asset_whitelisted(asset_in),
         Error::VaultAssetInNotWhitelisted
     );
@@ -662,8 +646,6 @@ pub fn _swap(
         Error::VaultAssetOutNotWhitelisted
     );
     require(asset_in != asset_out, Error::VaultAssetsAreEqual);
-
-    vault_storage.write_use_swap_pricing(true);
 
     vault_utils.update_cumulative_funding_rate(asset_in, asset_in);
     vault_utils.update_cumulative_funding_rate(asset_out, asset_out);
@@ -718,8 +700,6 @@ pub fn _swap(
         fee_basis_points,
     });
 
-    vault_storage.write_use_swap_pricing(false);
-
     amount_out_after_fees
 }
 
@@ -737,17 +717,10 @@ pub fn _sell_rusd(
     let vault_storage = abi(VaultStorage, vault_storage_.into());
     let vault_utils = abi(VaultUtils, vault_utils_.into());
 
-    _validate_manager(vault_storage_);
-
-    let vault_storage = abi(VaultStorage, vault_storage_.into());
-    let vault_utils = abi(VaultUtils, vault_utils_.into());
-    
     require(
         vault_storage.is_asset_whitelisted(asset),
         Error::VaultAssetNotWhitelisted
     );
-
-    vault_storage.write_use_swap_pricing(true);
 
     let rusd = vault_storage.get_rusd();
 
@@ -771,6 +744,7 @@ pub fn _sell_rusd(
     let _amount = u64::try_from(rusd_amount).unwrap();
 
     abi(RUSD, vault_storage.get_rusd_contr().into()).burn{
+        // @TODO: this is prob a buggy implementation of the RUSD native asset? 
         asset_id: rusd.into(),
         coins: _amount
     }(
@@ -814,8 +788,6 @@ pub fn _sell_rusd(
         fee_basis_points,
     });
 
-    vault_storage.write_use_swap_pricing(false);
-
     amount_out.as_u256()
 }
 
@@ -830,8 +802,6 @@ pub fn _buy_rusd(
         Error::VaultReceiverCannotBeZero
     );
 
-    _validate_manager(vault_storage_);
-
     let vault_storage = abi(VaultStorage, vault_storage_.into());
     let vault_utils = abi(VaultUtils, vault_utils_.into());
 
@@ -839,8 +809,6 @@ pub fn _buy_rusd(
         vault_storage.is_asset_whitelisted(asset),
         Error::VaultAssetNotWhitelisted
     );
-
-    vault_storage.write_use_swap_pricing(true);
 
     let asset_amount = _transfer_in(asset, vault_storage_);
     require(asset_amount > 0, Error::VaultInvalidAssetAmount);
@@ -896,8 +864,6 @@ pub fn _buy_rusd(
         rusd_amount: mint_amount,
         fee_basis_points,
     });
-
-    vault_storage.write_use_swap_pricing(false);
 
     mint_amount
 }

@@ -3,6 +3,7 @@ library;
 
 use helpers::{
     context::*,
+    signed_64::*,
 };
 
 abi VaultPricefeed {
@@ -74,9 +75,7 @@ abi VaultPricefeed {
     #[storage(read)]
     fn get_price(
         asset: AssetId,
-        maximize: bool,
-        include_amm_price: bool,
-        _use_swap_pricing: bool
+        maximize: bool
     ) -> u256;
 
     #[storage(read)]
