@@ -75,7 +75,7 @@ impl RUSD for Contract {
         );
         storage.is_initialized.write(true);
 
-        storage.name.write_slice(String::from_ascii_str("Ruscet USD"));
+        storage.name.write_slice(String::from_ascii_str("USD Gambit"));
         storage.symbol.write_slice(String::from_ascii_str("RUSD"));
         
         storage.gov.write(get_sender());
@@ -211,6 +211,8 @@ impl RUSD for Contract {
         _only_vault();
         _burn(account, amount);
     }
+
+
 
     /*
           ____ __     ___               

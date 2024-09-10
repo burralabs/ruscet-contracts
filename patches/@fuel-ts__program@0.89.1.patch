@@ -1,0 +1,40 @@
+diff --git a/dist/index.js b/dist/index.js
+index f6d55e2e0d70dd3b85e125297b5ba65be9a852f5..37d87a5beb1e0fbaaa725ff0b75efab1c353a4f9 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -1134,7 +1134,16 @@ var Contract = class {
+     return this.provider.getContractBalance(this.id, assetId);
+   }
+   // #endregion contract-balance-1
++  
++  connect(account) {
++    return new Contract(this.id, this.interface, account);
++  }
++
++  as(account) {
++    return this.connect(account)
++  }
+ };
++
+ // Annotate the CommonJS export names for ESM import in node:
+ 0 && (module.exports = {
+   Contract,
+diff --git a/dist/index.mjs b/dist/index.mjs
+index 138fedef123948b2e304326f68d537714d5543bf..919f59ca6aaaa671912b6fdc958b473e50bcf353 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -1101,6 +1101,14 @@ var Contract = class {
+     return this.provider.getContractBalance(this.id, assetId);
+   }
+   // #endregion contract-balance-1
++
++  connect(account) {
++    return new Contract(this.id, this.interface, account);
++  }
++
++  as(account) {
++    return this.connect(account)
++  }
+ };
+ export {
+   Contract,

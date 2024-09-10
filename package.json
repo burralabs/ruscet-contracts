@@ -4,7 +4,12 @@
     "main": "node.js",
     "license": "Apache-2.0",
     "scripts": {
-        "build": "forc build --release --log-level 4"
+        "build": "forc build --release --log-level 4",
+        "gen:types": "rm -rf ./types && pnpm gen:contract:types && pnpm process:types",
+        "gen:contract:types": "sh ./utils/generate-contract-types.sh",
+        "process:types": "python3 utils/process_types.py",
+        "test": "hardhat test",
+        "test:specific": "hardhat test test/core/vault/liquidateLongPosition.test.ts"
     },
     "devDependencies": {
         "@nomiclabs/hardhat-ethers": "^2.2.3",
@@ -25,5 +30,12 @@
     "dependencies": {
         "bn.js": "^5.2.0",
         "fuels": "0.89.1"
+    },
+    "pnpm": {
+        "patchedDependencies": {
+            "@fuel-ts/account@0.89.1": "patches/@fuel-ts__account@0.89.1.patch",
+            "@fuel-ts/errors@0.89.1": "patches/@fuel-ts__errors@0.89.1.patch",
+            "@fuel-ts/program@0.89.1": "patches/@fuel-ts__program@0.89.1.patch"
+        }
     }
 }

@@ -5,14 +5,13 @@ pub enum Error {
     VaultPriceFeedAlreadyInitialized: (),
     VaultPriceFeedForbidden: (),
 
-    VaultPriceFeedInvalidPythPriceFeedId: (),
-
     VaultPriceFeedInvalidAdjustmentBps: (),
     VaultPriceFeedInvalidSpreadBasisPoints: (),
     VaultPriceFeedInvalidPriceSampleSpace: (),
 
     VaultPriceFeedInvalidPrice: (),
     VaultPriceFeedInvalidPriceFeed: (),
+    VaultPriceFeedInvalidPriceFeedToUpdate: (),
 
     VaultPriceFeedInvalidPriceIEq0: (),
     VaultPriceFeedInvalidPriceINeq0: (),

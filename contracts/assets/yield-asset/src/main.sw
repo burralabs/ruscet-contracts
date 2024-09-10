@@ -89,16 +89,6 @@ impl YieldAsset for Contract {
     }
 
     #[storage(read, write)]
-    fn set_info(
-        name: String,
-        symbol: String
-    ) {
-        _only_gov();
-        storage.name.write_slice(name);
-        storage.symbol.write_slice(symbol);
-    }
-
-    #[storage(read, write)]
     fn set_yield_trackers(yield_trackers: Vec<ContractId>) {
         _only_gov();
         storage.yield_trackers.clear();
@@ -241,12 +231,6 @@ impl YieldAsset for Contract {
        / / /   |  __/| |_| | |_) | | | (__ 
       /_/_/    |_|    \__,_|_.__/|_|_|\___|
     */
-    #[storage(read, write)]
-    fn approve(spender: Account, amount: u64) -> bool {
-        _approve(get_sender(), spender, amount);
-        true
-    }
-
     #[payable]
     #[storage(read, write)]
     fn transfer(

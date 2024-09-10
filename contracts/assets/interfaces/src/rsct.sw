@@ -9,13 +9,9 @@ use helpers::{
     context::Account,
 };
 
-abi YieldAsset {
+abi RSCT {
     #[storage(read, write)]
-    fn initialize(
-        name: String,
-        symbol: String,
-        initial_supply: u64
-    );
+    fn initialize();
 
     /*
           ____     _       _           _       
@@ -28,31 +24,7 @@ abi YieldAsset {
     fn set_gov(new_gov: Account);
 
     #[storage(read, write)]
-    fn set_yield_trackers(yield_trackers: Vec<ContractId>);
-
-    #[storage(read, write)]
-    fn add_admin(account: Account);
-
-    #[storage(read, write)]
-    fn remove_admin(account: Account);
-
-    #[storage(read, write)]
-    fn set_in_whitelist_mode(in_whitelist_mode: bool);
-
-    #[storage(read, write)]
-    fn set_whitelisted_handler(handler: Account, is_whitelisted: bool);
-
-    #[storage(read, write)]
-    fn add_nonstaking_account(account: Account);
-
-    #[storage(read, write)]
-    fn remove_nonstaking_account(account: Account);
-
-    #[storage(read)]
-    fn recover_claim(account: Account, receiver: Account);
-
-    #[storage(read)]
-    fn claim(receiver: Account);
+    fn set_minter(minter: Account, is_active: bool);
 
     /*
           ____ __     ___               
@@ -64,22 +36,22 @@ abi YieldAsset {
     fn get_id() -> AssetId;
 
     #[storage(read)]
-    fn name() -> Option<String>;
+    fn id() -> String;
 
     #[storage(read)]
-    fn symbol() -> Option<String>;
+    fn name() -> String;
+
+    #[storage(read)]
+    fn symbol() -> String;
 
     #[storage(read)]
     fn decimals() -> u8;
 
     #[storage(read)]
+    fn total_supply() -> u64;
+
+    #[storage(read)]
     fn balance_of(who: Account) -> u64;
-
-    #[storage(read)]
-    fn staked_balance_of(who: Account) -> u64;
-
-    #[storage(read)]
-    fn total_staked() -> u64;
 
     /*
           ____  ____        _     _ _      
@@ -94,4 +66,11 @@ abi YieldAsset {
         to: Account,
         amount: u64
     ) -> bool;
+
+    #[storage(read, write)]
+    fn mint(account: Account, amount: u64);
+
+    #[payable]
+    #[storage(read, write)]
+    fn burn(account: Account, amount: u64);
 }

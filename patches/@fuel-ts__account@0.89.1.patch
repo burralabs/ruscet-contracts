@@ -1,0 +1,64 @@
+diff --git a/dist/index.js b/dist/index.js
+index c1c9e0c7592eb6db3c81f3b1842aeeacd25f8b53..7995c60d589660254f058fcfa16c1afe33248554 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -1900,7 +1900,7 @@ var assembleRevertError = (receipts, logs) => {
+     switch (reasonHex) {
+       case import_configs5.FAILED_REQUIRE_SIGNAL: {
+         reason = "require";
+-        errorMessage = `The transaction reverted because a "require" statement has thrown ${logs.length ? stringify(logs[0]) : "an error."}.`;
++        errorMessage = `The transaction reverted because a "require" statement has thrown ${logs.length ? stringify(logs[logs.length - 1]) : "an error."}.`;
+         break;
+       }
+       case import_configs5.FAILED_ASSERT_EQ_SIGNAL: {
+@@ -4151,12 +4151,12 @@ var _Provider = class {
+   static ensureClientVersionIsSupported(nodeInfo) {
+     const { isMajorSupported, isMinorSupported, supportedVersion } = (0, import_versions.checkFuelCoreVersionCompatibility)(nodeInfo.nodeVersion);
+     if (!isMajorSupported || !isMinorSupported) {
+-      console.warn(
+-        `The Fuel Node that you are trying to connect to is using fuel-core version ${nodeInfo.nodeVersion},
+-which is not supported by the version of the TS SDK that you are using.
+-Things may not work as expected.
+-Supported fuel-core version: ${supportedVersion}.`
+-      );
++//       console.warn(
++//         `The Fuel Node that you are trying to connect to is using fuel-core version ${nodeInfo.nodeVersion},
++// which is not supported by the version of the TS SDK that you are using.
++// Things may not work as expected.
++// Supported fuel-core version: ${supportedVersion}.`
++//       );
+     }
+   }
+   /**
+diff --git a/dist/index.mjs b/dist/index.mjs
+index 4ef7ad91942ca1fb414856757f07e53d4fa7f4ab..146913430757fabe92f3ba07e4c09d5c60bc496f 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -1757,7 +1757,7 @@ var assembleRevertError = (receipts, logs) => {
+     switch (reasonHex) {
+       case FAILED_REQUIRE_SIGNAL: {
+         reason = "require";
+-        errorMessage = `The transaction reverted because a "require" statement has thrown ${logs.length ? stringify(logs[0]) : "an error."}.`;
++        errorMessage = `The transaction reverted because a "require" statement has thrown ${logs.length ? stringify(logs[logs.length - 1]) : "an error."}.`;
+         break;
+       }
+       case FAILED_ASSERT_EQ_SIGNAL: {
+@@ -4008,12 +4008,12 @@ var _Provider = class {
+   static ensureClientVersionIsSupported(nodeInfo) {
+     const { isMajorSupported, isMinorSupported, supportedVersion } = checkFuelCoreVersionCompatibility(nodeInfo.nodeVersion);
+     if (!isMajorSupported || !isMinorSupported) {
+-      console.warn(
+-        `The Fuel Node that you are trying to connect to is using fuel-core version ${nodeInfo.nodeVersion},
+-which is not supported by the version of the TS SDK that you are using.
+-Things may not work as expected.
+-Supported fuel-core version: ${supportedVersion}.`
+-      );
++//       console.warn(
++//         `The Fuel Node that you are trying to connect to is using fuel-core version ${nodeInfo.nodeVersion},
++// which is not supported by the version of the TS SDK that you are using.
++// Things may not work as expected.
++// Supported fuel-core version: ${supportedVersion}.`
++//       );
+     }
+   }
+   /**

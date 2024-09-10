@@ -1,12 +1,17 @@
 [workspace]
 members = [
-    "contracts/core/vault-pricefeed",
+    # "contracts/fungible",
+    # "contracts/core/vault-pricefeed",
 
-    "contracts/core/vault-storage",
-    "contracts/core/vault-utils",
+    # "contracts/core/vault-storage",
+    # "contracts/core/vault-utils",
     "contracts/core/vault",
 
-    "contracts/assets/time-distributor",
-    "contracts/assets/yield-tracker",
-    "contracts/assets/rusd",
+    # "contracts/assets/yield-tracker",
+    # "contracts/assets/yield-asset",
+    # "contracts/assets/rusd",
+    # "contracts/assets/time-distributor",
+    # "contracts/assets/rlp",
+
+    # "contracts/utils",
 ]
