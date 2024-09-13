@@ -5,7 +5,8 @@ use std::{
     block::{timestamp as tai64_timestamp},
 	call_frames::*,
 	context::*, 
-	asset::*, 
+	asset::*,
+	hash::*
 };
 use helpers::{
 	context::*,
@@ -16,7 +17,6 @@ use core_interfaces::vault_pricefeed::*;
 abi Utils {
 	fn get_tai64_timestamp() -> u64;
 	fn get_unix_timestamp() -> u64;
-
 	fn get_unix_and_tai64_timestamp() -> (u64, u64);
 
 	fn get_contr_balance(
@@ -35,6 +35,13 @@ abi Utils {
 		vault_pricefeed_: ContractId,
 		price_update_data: Vec<PriceUpdateData>
 	);
+
+	fn get_position_key(
+		account: Account,
+		collateral_asset: AssetId,
+		index_asset: AssetId,
+		is_long: bool,
+	) -> b256;
 }
 
 struct PriceUpdateData {
@@ -45,6 +52,22 @@ struct PriceUpdateData {
 enum Error {
 	UtilsInvalidAmountForwarded: (),
 	UtilsInvalidAssetForwarded: ()
+}
+
+struct PositionKey {
+    pub account: Account,
+    pub collateral_asset: AssetId,
+    pub index_asset: AssetId,
+    pub is_long: bool,
+}
+
+impl Hash for PositionKey {
+    fn hash(self, ref mut state: Hasher) {
+        self.account.hash(state);
+        self.collateral_asset.hash(state);
+        self.index_asset.hash(state);
+        self.is_long.hash(state);
+    }
 }
 
 impl Utils for Contract {
@@ -110,4 +133,18 @@ impl Utils for Contract {
 			i += 1;
 		}
 	}
-} 
+
+	fn get_position_key(
+		account: Account,
+		collateral_asset: AssetId,
+		index_asset: AssetId,
+		is_long: bool,
+	) -> b256 {
+		keccak256(PositionKey {
+			account,
+			collateral_asset,
+			index_asset,
+			is_long,
+		})
+	}
+}

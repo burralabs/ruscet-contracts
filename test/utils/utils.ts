@@ -1,44 +1,15 @@
-import { AbstractAddress, FUEL_NETWORK_URL, Provider, WalletUnlocked } from "fuels"
-import { FungibleAbi, UtilsAbi } from "../../types"
+import { AbstractAddress, Provider, WalletUnlocked } from "fuels"
+import { Fungible, Utils } from "../../types"
 import { getAssetId, toAsset } from "./asset"
-import { Contract } from "ethers"
 import { toContract } from "./account"
-import fs from "fs"
-import path from "path"
 
-const INDEXER_CONTRACT_DEPLOYMENTS = path.resolve(__dirname, "../indexer/indexer_deployments.json")
-
-export async function deploy(contract: string, wallet: WalletUnlocked) {
-    const bytecode = require(`../../types/${contract}Abi.hex`).default
-    const factory = require(`../../types/factories/${contract}Abi__factory`)[`${contract}Abi__factory`]
+export async function deploy(contract: string, wallet: WalletUnlocked, configurables: any = undefined) {
+    const factory = require(`../../types/${contract}Factory.ts`)[`${contract}Factory`]
     if (!factory) {
         throw new Error(`Could not find factory for contract ${contract}`)
     }
-    return await factory.deployContract(bytecode, wallet)
-}
-
-export async function indexerDeploy(
-    contract: string,
-    wallet: WalletUnlocked,
-    saveName: string | undefined = undefined,
-    forceDeploy = false,
-) {
-    const bytecode = require(`../../types/${contract}Abi.hex`).default
-    const factory = require(`../../types/factories/${contract}Abi__factory`)[`${contract}Abi__factory`]
-    if (!factory) {
-        throw new Error(`Could not find factory for contract ${contract}`)
-    }
-
-    const deployments = JSON.parse(fs.readFileSync(INDEXER_CONTRACT_DEPLOYMENTS).toString())
-    if (deployments[saveName ?? contract] && !forceDeploy) {
-        console.log(">>> Using existing deployment for", saveName ?? contract)
-        return await factory.connect(deployments[saveName ?? contract], wallet)
-    }
-
-    const contr = await factory.deployContract(bytecode, wallet)
-
-    deployments[saveName ?? contract] = contr.id.toB256()
-    fs.writeFileSync(INDEXER_CONTRACT_DEPLOYMENTS, JSON.stringify(deployments, null, 4))
+    const { waitForResult } = await factory.deploy(wallet, configurables ? { configurableConstants: configurables } : undefined)
+    const { contract: contr } = await waitForResult()
 
     return contr
 }
@@ -67,9 +38,10 @@ export function formatComplexObject(obj: any, depth = 2) {
 
 export async function getBalance(
     account: WalletUnlocked | { id: AbstractAddress },
-    fungibleAsset: FungibleAbi | string,
-    utils: UtilsAbi | undefined = undefined,
+    fungibleAsset: Fungible | string,
+    utils: Utils | undefined = undefined,
 ) {
+    const FUEL_NETWORK_URL = "http://127.0.0.1:4000/v1/graphql"
     const localProvider = await Provider.create(FUEL_NETWORK_URL)
 
     if (account instanceof WalletUnlocked) {
@@ -83,19 +55,34 @@ export async function getBalance(
         throw new Error("UtilsAbi reference not provided as fallback")
     }
 
+    let arg: any
+
     if (typeof fungibleAsset === "string") {
-        return (await utils.functions.get_contr_balance(toContract(account), { bits: fungibleAsset }).call()).value.toString()
+        arg = { bits: fungibleAsset }
     }
 
-    return (await utils.functions.get_contr_balance(toContract(account), toAsset(fungibleAsset)).call()).value.toString()
+    arg = toAsset(fungibleAsset)
+
+    const { value } = await (await utils.functions.get_contr_balance(toContract(account), arg).call()).waitForResult()
+
+    return value.toString()
 }
 
 export async function getValue(call: any) {
-    return (await call.call()).value
+    const { value } = await call.get()
+    return value
 }
 
 export async function getValStr(call: any) {
     return (await getValue(call)).toString()
+}
+
+export async function call(fnCall: any) {
+    const { gasUsed } = await fnCall.getTransactionCost()
+    const gasLimit = gasUsed.mul("6").div("5").toString()
+
+    const { waitForResult } = await fnCall.txParams({ gasLimit }).call()
+    return await waitForResult()
 }
 
 export function formatObj(obj: any) {

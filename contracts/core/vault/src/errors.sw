@@ -4,7 +4,6 @@ library;
 pub enum Error {
     VaultForbiddenNotGov: (),
     VaultAlreadyInitialized: (),
-    VaultForbiddenNotManager: (),
     VaultInvalidMsgCaller: (),
     VaultReentrantCall: (),
 

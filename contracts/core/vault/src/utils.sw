@@ -181,28 +181,28 @@ pub fn _increase_position(
         vault_utils.increase_global_short_size(index_asset, size_delta);
     }
 
-    log(IncreasePosition {
-        key: position_key,
-        account,
-        collateral_asset,
-        index_asset,
-        collateral_delta: collateral_delta_usd,
-        size_delta,
-        is_long,
-        price,
-        fee,
-    });
+    // log(IncreasePosition {
+    //     key: position_key,
+    //     account,
+    //     collateral_asset,
+    //     index_asset,
+    //     collateral_delta: collateral_delta_usd,
+    //     size_delta,
+    //     is_long,
+    //     price,
+    //     fee,
+    // });
 
-    log(UpdatePosition {
-        key: position_key,
-        size: position.size,
-        collateral: position.collateral,
-        average_price: position.average_price,
-        entry_funding_rate: position.entry_funding_rate,
-        reserve_amount: position.reserve_amount,
-        realized_pnl: position.realized_pnl,
-        mark_price: price,
-    });
+    // log(UpdatePosition {
+    //     key: position_key,
+    //     size: position.size,
+    //     collateral: position.collateral,
+    //     average_price: position.average_price,
+    //     entry_funding_rate: position.entry_funding_rate,
+    //     reserve_amount: position.reserve_amount,
+    //     realized_pnl: position.realized_pnl,
+    //     mark_price: price,
+    // });
 
     vault_storage.write_position(position_key, position);
 }
@@ -868,13 +868,14 @@ pub fn _buy_rusd(
     mint_amount
 }
 
+
+/// deposit into the pool without minting RUSD tokens
+/// useful in allowing the pool to become over-collaterised
 pub fn _direct_pool_deposit(
     asset: AssetId,
     vault_storage_: ContractId,
     vault_utils_: ContractId
 ) {
-    // deposit into the pool without minting RUSD tokens
-    // useful in allowing the pool to become over-collaterised
     let vault_storage = abi(VaultStorage, vault_storage_.into());
     let vault_utils = abi(VaultUtils, vault_utils_.into());
     
@@ -891,5 +892,33 @@ pub fn _direct_pool_deposit(
     log(DirectPoolDeposit {
         asset: asset,
         amount: amount,
+    });
+}
+
+pub fn _withdraw_fees(
+    asset: AssetId,
+    receiver: Account,
+    vault_storage_: ContractId
+) {
+    let vault_storage = abi(VaultStorage, vault_storage_.into());
+
+    let amount = vault_storage.get_fee_reserves(asset);
+    if amount == 0 {
+        return;
+    }
+
+    vault_storage.write_fee_reserve(asset, 0);
+
+    _transfer_out(
+        asset,
+        u64::try_from(amount).unwrap(),
+        receiver,
+        vault_storage_
+    );
+
+    log(WithdrawFees {
+        asset,
+        receiver,
+        amount
     });
 }

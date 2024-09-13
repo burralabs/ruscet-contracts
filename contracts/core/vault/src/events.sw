@@ -6,10 +6,6 @@ use helpers::{
     signed_256::*
 };
 
-pub struct SetGov {
-    pub new_gov: Account
-}
-
 pub struct RegisterPositionByKey {
     pub position_key: b256,
     pub account: Account,

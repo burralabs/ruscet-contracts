@@ -125,9 +125,6 @@ pub fn _validate_buffer_amount(
     let vault_storage = abi(VaultStorage, vault_storage_.into());
     let vault_utils = abi(VaultUtils, vault_utils_.into());
     
-    // let pool_amount = vault_utils.get_pool_amounts(asset);
-    // let buffer_amount = vault_storage.get_buffer_amounts(asset);
-
     if vault_utils.get_pool_amounts(asset) < vault_storage.get_buffer_amounts(asset) {
         require(false, Error::VaultPoolAmountLtBuffer);
     }
@@ -163,9 +160,6 @@ pub fn _transfer_out(
     );
     vault_storage.write_asset_balance(asset_id, balance_of(ContractId::this(), asset_id));
 }
-
-// amount_out:   29810299800
-// transferring: 99666666
 
 // for longs:  next_average_price = (next_price * next_size) / (next_size + delta)
 // for shorts: next_average_price = (next_price * next_size) / (next_size - delta)
@@ -272,7 +266,6 @@ pub fn _collect_margin_fees(
     fee_usd = position_fee + funding_fee;
 
     fee_assets = vault_utils.usd_to_asset_min(collateral_asset, fee_usd);
-    // let old_fee_reserve = vault_storage.get_fee_reserves(collateral_asset);
     let new_fee_reserve =  vault_storage.get_fee_reserves(collateral_asset) + fee_assets;
     vault_storage.write_fee_reserve(
         collateral_asset,

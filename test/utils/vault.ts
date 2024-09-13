@@ -1,19 +1,19 @@
 import { BigNumber } from "ethers"
-import { FungibleAbi, VaultAbi, VaultStorageAbi, VaultUtilsAbi } from "../../types"
+import { Fungible, Vault, VaultStorage, VaultUtils } from "../../types"
 import { toContract } from "./account"
 import { toAsset } from "./asset"
 
 export async function validateVaultBalance(
     expect: any,
-    vault: VaultAbi,
-    vaultStorage: VaultStorageAbi,
-    vaultUtils: VaultUtilsAbi,
-    token: FungibleAbi,
+    vault: Vault,
+    vaultStorage: VaultStorage,
+    vaultUtils: VaultUtils,
+    token: Fungible,
     offset: number | string = 0,
 ) {
-    const poolAmount = (await vaultUtils.functions.get_pool_amounts(toAsset(token)).call()).value
-    const feeReserve = (await vaultStorage.functions.get_fee_reserves(toAsset(token)).call()).value
-    const balance = (await token.functions.get_balance(toContract(vault)).call()).value.toString()
+    const poolAmount = (await vaultUtils.functions.get_pool_amounts(toAsset(token)).get()).value
+    const feeReserve = (await vaultStorage.functions.get_fee_reserves(toAsset(token)).get()).value
+    const balance = (await token.functions.get_balance(toContract(vault)).get()).value.toString()
     let amount = poolAmount.add(feeReserve)
     // console.log("Balance:", balance)
     expect(BigNumber.from(balance).gt(0)).to.be.true
@@ -21,9 +21,7 @@ export async function validateVaultBalance(
 }
 
 // https://cumsum.wordpress.com/2021/08/28/typescript-a-spread-argument-must-either-have-a-tuple-type-or-be-passed-to-a-rest-parameter/
-export function getDaiConfig9Decimals(
-    fungible: FungibleAbi,
-): [{ bits: string }, number, number, number, number, boolean, boolean] {
+export function getDaiConfig9Decimals(fungible: Fungible): [{ bits: string }, number, number, number, number, boolean, boolean] {
     return [
         toAsset(fungible), // asset
         9, // asset_decimals
@@ -35,9 +33,7 @@ export function getDaiConfig9Decimals(
     ]
 }
 
-export function getBtcConfig9Decimals(
-    fungible: FungibleAbi,
-): [{ bits: string }, number, number, number, number, boolean, boolean] {
+export function getBtcConfig9Decimals(fungible: Fungible): [{ bits: string }, number, number, number, number, boolean, boolean] {
     return [
         toAsset(fungible), // asset
         9, // asset_decimals
@@ -50,7 +46,7 @@ export function getBtcConfig9Decimals(
 }
 
 // https://cumsum.wordpress.com/2021/08/28/typescript-a-spread-argument-must-either-have-a-tuple-type-or-be-passed-to-a-rest-parameter/
-export function getDaiConfig(fungible: FungibleAbi): [{ bits: string }, number, number, number, number, boolean, boolean] {
+export function getDaiConfig(fungible: Fungible): [{ bits: string }, number, number, number, number, boolean, boolean] {
     return [
         toAsset(fungible), // asset
         8, // asset_decimals
@@ -62,7 +58,7 @@ export function getDaiConfig(fungible: FungibleAbi): [{ bits: string }, number, 
     ]
 }
 
-export function getBtcConfig(fungible: FungibleAbi): [{ bits: string }, number, number, number, number, boolean, boolean] {
+export function getBtcConfig(fungible: Fungible): [{ bits: string }, number, number, number, number, boolean, boolean] {
     return [
         toAsset(fungible), // asset
         8, // asset_decimals
@@ -74,7 +70,7 @@ export function getBtcConfig(fungible: FungibleAbi): [{ bits: string }, number, 
     ]
 }
 
-export function getEthConfig(fungible: FungibleAbi): [{ bits: string }, number, number, number, number, boolean, boolean] {
+export function getEthConfig(fungible: Fungible): [{ bits: string }, number, number, number, number, boolean, boolean] {
     return [
         toAsset(fungible), // asset
         8, // asset_decimals (@TODO: actually: 18)
@@ -86,9 +82,7 @@ export function getEthConfig(fungible: FungibleAbi): [{ bits: string }, number, 
     ]
 }
 
-export function getBnbConfig(
-    fungible: FungibleAbi,
-): [{ bits: string }, number, number, number, number | string, boolean, boolean] {
+export function getBnbConfig(fungible: Fungible): [{ bits: string }, number, number, number, number | string, boolean, boolean] {
     return [
         toAsset(fungible), // asset
         8, // asset_decimals (@TODO: actually: 18)

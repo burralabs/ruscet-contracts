@@ -1,5 +1,5 @@
 import { getMintedAssetId } from "fuels"
-import { FungibleAbi } from "../../types"
+import { Fungible } from "../../types"
 import { Account } from "./types"
 
 export function toAsset(value: any) {
@@ -14,7 +14,7 @@ export function getAssetId(
     return getMintedAssetId(id, sub_id)
 }
 
-export async function transfer(fungibleContract: FungibleAbi, to: Account, amount: number | string) {
+export async function transfer(fungibleContract: Fungible, to: Account, amount: number | string) {
     const call = fungibleContract.functions
         .transfer(to, amount)
         .callParams({
@@ -25,5 +25,6 @@ export async function transfer(fungibleContract: FungibleAbi, to: Account, amoun
             gasLimit: 1000000,
         })
 
-    await call.call()
+    const { waitForResult } = await call.call()
+    await waitForResult()
 }

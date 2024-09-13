@@ -8,3 +8,4 @@ name = "vault-utils"
 asset_interfaces = { path = "../../assets/interfaces" }
 core_interfaces = { path = "../interfaces" }
 helpers = { path = "../../helpers" }
+interfaces = { path = "../../interfaces" }

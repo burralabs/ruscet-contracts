@@ -25,29 +25,9 @@ pub struct WritePoolAmount {
     pub pool_amount: u256,
 }
 
-pub struct IncreasePoolAmount {
-    pub asset: AssetId,
-    pub amount: u256,
-}
-
-pub struct DecreasePoolAmount {
-    pub asset: AssetId,
-    pub amount: u256,
-}
-
 pub struct WriteRusdAmount {
     pub asset: AssetId,
     pub rusd_amount: u256,
-}
-
-pub struct IncreaseRusdAmount {
-    pub asset: AssetId,
-    pub amount: u256,
-}
-
-pub struct DecreaseRusdAmount {
-    pub asset: AssetId,
-    pub amount: u256,
 }
 
 pub struct WriteReservedAmount {
@@ -55,27 +35,7 @@ pub struct WriteReservedAmount {
     pub reserved_amount: u256,
 }
 
-pub struct IncreaseReservedAmount {
-    pub asset: AssetId,
-    pub amount: u256,
-}
-
-pub struct DecreaseReservedAmount {
-    pub asset: AssetId,
-    pub amount: u256,
-}
-
 pub struct WriteGuaranteedAmount {
     pub asset: AssetId,
     pub guaranteed_amount: u256,
-}
-
-pub struct IncreaseGuaranteedAmount {
-    pub asset: AssetId,
-    pub amount: u256,
-}
-
-pub struct DecreaseGuaranteedAmount {
-    pub asset: AssetId,
-    pub amount: u256,
 }

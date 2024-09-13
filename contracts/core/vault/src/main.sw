@@ -49,25 +49,26 @@ use events::*;
 use constants::*;
 use errors::*;
 
+configurable {
+    VAULT_STORAGE: ContractId = ZERO_CONTRACT,
+    VAULT_UTILS: ContractId = ZERO_CONTRACT
+}
+
 storage {
     // gov is not restricted to an `Address` (EOA) or a `Contract` (external)
     // because this can be either a regular EOA (Address) or a Multisig (Contract)
     gov: Account = ZERO_ACCOUNT,
-
-    vault_storage: ContractId = ZERO_CONTRACT,
-    vault_utils: ContractId = ZERO_CONTRACT,
 
     is_initialized: bool = false,
 }
 
 impl Vault for Contract {
     #[storage(read, write)]
-    fn initialize(
-        gov: Account,
-        vault_utils: ContractId,
-        vault_storage: ContractId,
-    ) {
-        _initialize(gov, vault_utils, vault_storage);
+    fn initialize(gov: Account) {
+        require(!storage.is_initialized.read(), Error::VaultAlreadyInitialized);
+        storage.is_initialized.write(true);
+
+        storage.gov.write(gov);
     }
 
     /*
@@ -81,7 +82,6 @@ impl Vault for Contract {
     fn set_gov(new_gov: Account) {
         _only_gov();
         storage.gov.write(new_gov);
-        log(SetGov { new_gov });
     }
 
     #[storage(read)]
@@ -90,29 +90,7 @@ impl Vault for Contract {
         receiver: Account 
     ) {
         _only_gov();
-
-        let vault_storage_ = storage.vault_storage.read();
-        let vault_storage = abi(VaultStorage, vault_storage_.into());
-
-        let amount = vault_storage.get_fee_reserves(asset);
-        if amount == 0 {
-            return;
-        }
-
-        vault_storage.write_fee_reserve(asset, 0);
- 
-        _transfer_out(
-            asset,
-            u64::try_from(amount).unwrap(),
-            receiver,
-            vault_storage_
-        );
-
-        log(WithdrawFees {
-            asset,
-            receiver,
-            amount
-        });
+        _withdraw_fees(asset, receiver, VAULT_STORAGE);
     }
 
     /*
@@ -127,28 +105,12 @@ impl Vault for Contract {
         storage.gov.read()
     }
 
-    #[storage(read)]
     fn get_vault_storage() -> ContractId {
-        storage.vault_storage.read()
+        VAULT_STORAGE
     }
 
-    #[storage(read)]
     fn get_vault_utils() -> ContractId {
-        storage.vault_utils.read()
-    }
-
-    fn get_position_key(
-        account: Account,
-        collateral_asset: AssetId,
-        index_asset: AssetId,
-        is_long: bool,
-    ) -> b256 {
-        _get_position_key(
-            account,
-            collateral_asset,
-            index_asset,
-            is_long
-        )
+        VAULT_UTILS
     }
 
     /*
@@ -158,44 +120,34 @@ impl Vault for Contract {
        / / /   |  __/| |_| | |_) | | | (__ 
       /_/_/    |_|    \__,_|_.__/|_|_|\___|
     */
-    #[storage(read)]
-    fn update_cumulative_funding_rate(collateral_asset: AssetId, index_asset: AssetId) {
-        let vault_utils = abi(VaultUtils, storage.vault_utils.read().into());
-        vault_utils.update_cumulative_funding_rate(collateral_asset, index_asset);
-    }
-
     #[payable]
-    #[storage(read)]
     fn direct_pool_deposit(asset: AssetId) {
         _direct_pool_deposit(
             asset,
-            storage.vault_storage.read(),
-            storage.vault_utils.read()
-        )
+            VAULT_STORAGE,
+            VAULT_UTILS
+        );
     }
-    
-    #[storage(read)]
+
     fn buy_rusd(asset: AssetId, receiver: Account) -> u256 {
         _buy_rusd(
             asset,
             receiver,
-            storage.vault_storage.read(),
-            storage.vault_utils.read()
+            VAULT_STORAGE,
+            VAULT_UTILS
         )
     }
 
-    #[storage(read)]
     fn sell_rusd(asset: AssetId, receiver: Account) -> u256 {
         _sell_rusd(
             asset,
             receiver,
-            storage.vault_storage.read(),
-            storage.vault_utils.read()
+            VAULT_STORAGE,
+            VAULT_UTILS
         )
     }
 
     #[payable]
-    #[storage(read)]
     fn swap(
         asset_in: AssetId,
         asset_out: AssetId,
@@ -205,13 +157,12 @@ impl Vault for Contract {
             asset_in,
             asset_out,
             receiver,
-            storage.vault_storage.read(),
-            storage.vault_utils.read()
+            VAULT_STORAGE,
+            VAULT_UTILS
         )
     }
 
     #[payable]
-    #[storage(read)]
     fn increase_position(
         account: Account,
         collateral_asset: AssetId,
@@ -225,12 +176,11 @@ impl Vault for Contract {
             index_asset,
             size_delta,
             is_long,
-            storage.vault_storage.read(),
-            storage.vault_utils.read(),
+            VAULT_STORAGE,
+            VAULT_UTILS,
         );
     }
 
-    #[storage(read)]
     fn decrease_position(
         account: Account,
         collateral_asset: AssetId,
@@ -249,12 +199,11 @@ impl Vault for Contract {
             is_long,
             receiver,
             true,
-            storage.vault_storage.read(),
-            storage.vault_utils.read(),
+            VAULT_STORAGE,
+            VAULT_UTILS,
         )
     }
 
-    #[storage(read)]
     fn liquidate_position(
         account: Account,
         collateral_asset: AssetId,
@@ -268,8 +217,8 @@ impl Vault for Contract {
             index_asset,
             is_long,
             fee_receiver,
-            storage.vault_storage.read(),
-            storage.vault_utils.read()
+            VAULT_STORAGE,
+            VAULT_UTILS
         );
     }
 }
@@ -284,18 +233,4 @@ impl Vault for Contract {
 #[storage(read)]
 fn _only_gov() {
     require(get_sender() == storage.gov.read(), Error::VaultForbiddenNotGov);
-}
-
-#[storage(read, write)]
-fn _initialize(
-    gov: Account,
-    vault_utils: ContractId,
-    vault_storage: ContractId,
-) {
-    require(!storage.is_initialized.read(), Error::VaultAlreadyInitialized);
-    storage.is_initialized.write(true);
-
-    storage.gov.write(gov);
-    storage.vault_utils.write(vault_utils);
-    storage.vault_storage.write(vault_storage);
 }

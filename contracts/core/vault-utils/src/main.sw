@@ -489,13 +489,12 @@ impl VaultUtils for Contract {
         _decrease_global_short_size(asset, amount);
     }
 
+    /// this method is purposely left public, open to be called by anyone
     #[storage(read, write)]
     fn update_cumulative_funding_rate(
         collateral_asset: AssetId, 
         _index_asset: AssetId
     ) {
-        _only_authorized_caller();
-
         _update_cumulative_funding_rate(
             collateral_asset,
             _index_asset

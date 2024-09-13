@@ -8,3 +8,4 @@ name = "vault"
 helpers = { path = "../../helpers" }
 core_interfaces = { path = "../interfaces" }
 asset_interfaces = { path = "../../assets/interfaces" }
+interfaces = { path = "../../interfaces" }

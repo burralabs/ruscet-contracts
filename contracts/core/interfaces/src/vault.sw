@@ -7,11 +7,7 @@ use helpers::{
 
 abi Vault {
     #[storage(read, write)]
-    fn initialize(
-        gov: Account,
-        vault_utils: ContractId,
-        vault_storage: ContractId,
-    );
+    fn initialize(gov: Account);
 
     /*
           ____     _       _           _       
@@ -39,18 +35,9 @@ abi Vault {
     #[storage(read)]
     fn get_gov() -> Account;
 
-    #[storage(read)]
     fn get_vault_storage() -> ContractId;
 
-    #[storage(read)]
     fn get_vault_utils() -> ContractId;
-
-    fn get_position_key(
-        account: Account,
-        collateral_asset: AssetId,
-        index_asset: AssetId,
-        is_long: bool,
-    ) -> b256;
 
     /*
           ____  ____        _     _ _      
@@ -59,28 +46,17 @@ abi Vault {
        / / /   |  __/| |_| | |_) | | | (__ 
       /_/_/    |_|    \__,_|_.__/|_|_|\___|
     */
-    #[storage(read)]
-    fn update_cumulative_funding_rate(
-        collateral_asset: AssetId, 
-        index_asset: AssetId
-    );
-
     #[payable]
-    #[storage(read)]
     fn direct_pool_deposit(asset: AssetId);
 
-    #[storage(read)]
     fn buy_rusd(asset: AssetId, receiver: Account) -> u256;
 
-    #[storage(read)]
     fn sell_rusd(asset: AssetId, receiver: Account) -> u256;
 
     #[payable]
-    #[storage(read)]
     fn swap(asset_in: AssetId, asset_out: AssetId, receiver: Account) -> u64;
 
     #[payable]
-    #[storage(read)]
     fn increase_position(
         account: Account,
         collateral_asset: AssetId,
@@ -89,7 +65,6 @@ abi Vault {
         is_long: bool
     );
 
-    #[storage(read)]
     fn decrease_position(
         account: Account,
         collateral_asset: AssetId,
@@ -100,7 +75,6 @@ abi Vault {
         receiver: Account
     ) -> u256;
 
-    #[storage(read)]
     fn liquidate_position(
         account: Account,
         collateral_asset: AssetId,

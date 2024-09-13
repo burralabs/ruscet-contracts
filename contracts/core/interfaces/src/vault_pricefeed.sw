@@ -3,7 +3,6 @@ library;
 
 use helpers::{
     context::*,
-    signed_64::*,
 };
 
 abi VaultPricefeed {
