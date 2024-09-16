@@ -3,9 +3,7 @@ import { AbstractContract, Provider, Wallet, WalletUnlocked } from "fuels"
 import {
     Fungible,
     Rlp,
-    RlpManager,
     Pricefeed,
-    Router,
     TimeDistributor,
     Rusd,
     Utils,
@@ -47,13 +45,11 @@ describe("Vault.averagePrice", () => {
     let vaultStorage: VaultStorage
     let vaultUtils: VaultUtils
     let rusd: Rusd
-    let router: Router
+
     let vaultPricefeed: VaultPricefeed
     let timeDistributor: TimeDistributor
     let yieldTracker: YieldTracker
     let rlp: Rlp
-    let rlpManager: RlpManager
-
     beforeEach(async () => {
         const FUEL_NETWORK_URL = "http://127.0.0.1:4000/v1/graphql"
         const localProvider = await Provider.create(FUEL_NETWORK_URL)
@@ -87,19 +83,19 @@ describe("Vault.averagePrice", () => {
         utils = await deploy("Utils", deployer)
         vaultStorage = await deploy("VaultStorage", deployer)
         vaultUtils = await deploy("VaultUtils", deployer)
-        vault = await deploy("Vault", deployer, { VAULT_STORAGE: toContract(vaultStorage), VAULT_UTILS: toContract(vaultUtils) })
+        vault = await deploy("Vault", deployer, {
+            VAULT_STORAGE: toContract(vaultStorage),
+            VAULT_UTILS: toContract(vaultUtils),
+        })
         vaultPricefeed = await deploy("VaultPricefeed", deployer)
         rusd = await deploy("Rusd", deployer)
-        router = await deploy("Router", deployer)
         timeDistributor = await deploy("TimeDistributor", deployer)
         yieldTracker = await deploy("YieldTracker", deployer)
         rlp = await deploy("Rlp", deployer)
-        rlpManager = await deploy("RlpManager", deployer)
-
         attachedContracts = [vaultUtils, vaultStorage]
 
         await call(rusd.functions.initialize(toContract(vault)))
-        await call(router.functions.initialize(toContract(vault), toContract(rusd), addrToAccount(deployer)))
+
         await call(
             vaultStorage.functions.initialize(
                 addrToAccount(deployer),
@@ -147,15 +143,6 @@ describe("Vault.averagePrice", () => {
         )
 
         await call(rlp.functions.initialize())
-        await call(
-            rlpManager.functions.initialize(
-                toContract(vault),
-                toContract(rusd),
-                toContract(rlp),
-                toContract(ZERO_B256),
-                24 * 3600, // 24 hours
-            ),
-        )
     })
 
     describe("Tests", () => {
@@ -630,9 +617,6 @@ describe("Vault.averagePrice", () => {
                     .addContracts(attachedContracts),
             )
 
-            expect(await getValStr(rlpManager.functions.get_aum_in_rusd(false))).eq("10069700000") // 100.697
-            expect(await getValStr(rlpManager.functions.get_aum_in_rusd(true))).eq("10069700000") // 100.697
-
             let position = formatObj(
                 await getValue(vaultUtils.functions.get_position(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false)),
             )
@@ -646,9 +630,6 @@ describe("Vault.averagePrice", () => {
             await call(BTCPricefeed.functions.set_latest_answer(toPrice(50000)))
             await call(BTCPricefeed.functions.set_latest_answer(toPrice(50000)))
 
-            expect(await getValStr(rlpManager.functions.get_aum_in_rusd(false))).eq("12319700000") // 123.197
-            expect(await getValStr(rlpManager.functions.get_aum_in_rusd(true))).eq("12319700000") // 123.197
-
             let delta = formatObj(
                 await getValue(vaultUtils.functions.get_position_delta(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false)),
             )
@@ -661,9 +642,6 @@ describe("Vault.averagePrice", () => {
                     .functions.increase_position(addrToAccount(user0), toAsset(DAI), toAsset(BTC), toUsd(10), false)
                     .addContracts(attachedContracts),
             )
-
-            expect(await getValStr(rlpManager.functions.get_aum_in_rusd(false))).eq("12319700000") // 123.197
-            expect(await getValStr(rlpManager.functions.get_aum_in_rusd(true))).eq("12319700000") // 123.197
 
             position = formatObj(
                 await getValue(vaultUtils.functions.get_position(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false)),
@@ -704,9 +682,6 @@ describe("Vault.averagePrice", () => {
                     .addContracts(attachedContracts),
             )
 
-            expect(await getValStr(rlpManager.functions.get_aum_in_rusd(false))).eq("10069700000") // 100.697
-            expect(await getValStr(rlpManager.functions.get_aum_in_rusd(true))).eq("10069700000") // 100.697
-
             let position = formatObj(
                 await getValue(vaultUtils.functions.get_position(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false)),
             )
@@ -720,9 +695,6 @@ describe("Vault.averagePrice", () => {
             await call(BTCPricefeed.functions.set_latest_answer(toPrice(30000)))
             await call(BTCPricefeed.functions.set_latest_answer(toPrice(30000)))
 
-            expect(await getValStr(rlpManager.functions.get_aum_in_rusd(false))).eq("7819700000") // 78.197
-            expect(await getValStr(rlpManager.functions.get_aum_in_rusd(true))).eq("7819700000") // 78.197
-
             let delta = formatObj(
                 await getValue(vaultUtils.functions.get_position_delta(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false)),
             )
@@ -735,9 +707,6 @@ describe("Vault.averagePrice", () => {
                     .functions.increase_position(addrToAccount(user0), toAsset(DAI), toAsset(BTC), toUsd(10), false)
                     .addContracts(attachedContracts),
             )
-
-            expect(await getValStr(rlpManager.functions.get_aum_in_rusd(false))).eq("7819700000") // 78.197
-            expect(await getValStr(rlpManager.functions.get_aum_in_rusd(true))).eq("7819700000") // 78.197
 
             position = formatObj(
                 await getValue(vaultUtils.functions.get_position(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false)),
@@ -778,9 +747,6 @@ describe("Vault.averagePrice", () => {
                     .addContracts(attachedContracts),
             )
 
-            expect(await getValStr(rlpManager.functions.get_aum_in_rusd(false))).eq("10069700000") // 100.697
-            expect(await getValStr(rlpManager.functions.get_aum_in_rusd(true))).eq("10069700000") // 100.697
-
             let position = formatObj(
                 await getValue(vaultUtils.functions.get_position(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false)),
             )
@@ -794,9 +760,6 @@ describe("Vault.averagePrice", () => {
             await call(BTCPricefeed.functions.set_latest_answer(toPrice(39700)))
             await call(BTCPricefeed.functions.set_latest_answer(toPrice(39700)))
 
-            expect(await getValStr(rlpManager.functions.get_aum_in_rusd(false))).eq("10002200000") // 100.022
-            expect(await getValStr(rlpManager.functions.get_aum_in_rusd(true))).eq("10002200000") // 100.022
-
             let delta = formatObj(
                 await getValue(vaultUtils.functions.get_position_delta(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false)),
             )
@@ -809,9 +772,6 @@ describe("Vault.averagePrice", () => {
                     .functions.increase_position(addrToAccount(user0), toAsset(DAI), toAsset(BTC), toUsd(10), false)
                     .addContracts(attachedContracts),
             )
-
-            expect(await getValStr(rlpManager.functions.get_aum_in_rusd(false))).eq("10002200000") // 100.022
-            expect(await getValStr(rlpManager.functions.get_aum_in_rusd(true))).eq("10002200000") // 100.022
 
             position = formatObj(
                 await getValue(vaultUtils.functions.get_position(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false)),
@@ -831,9 +791,6 @@ describe("Vault.averagePrice", () => {
             await call(BTCPricefeed.functions.set_latest_answer(toPrice(39000)))
             await call(BTCPricefeed.functions.set_latest_answer(toPrice(39000)))
             await call(BTCPricefeed.functions.set_latest_answer(toPrice(39000)))
-
-            expect(await getValStr(rlpManager.functions.get_aum_in_rusd(false))).eq("9827067758") // 98.27067758
-            expect(await getValStr(rlpManager.functions.get_aum_in_rusd(true))).eq("9827067758") // 98.27067758
 
             delta = formatObj(
                 await getValue(vaultUtils.functions.get_position_delta(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false)),

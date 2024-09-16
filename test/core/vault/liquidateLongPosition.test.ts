@@ -3,9 +3,7 @@ import { AbstractContract, Provider, Wallet, WalletUnlocked } from "fuels"
 import {
     Fungible,
     Rlp,
-    RlpManager,
     Pricefeed,
-    Router,
     TimeDistributor,
     Rusd,
     Utils,
@@ -46,12 +44,11 @@ describe("Vault.liquidateLongPosition", () => {
     let vaultStorage: VaultStorage
     let vaultUtils: VaultUtils
     let rusd: Rusd
-    let router: Router
+
     let vaultPricefeed: VaultPricefeed
     let timeDistributor: TimeDistributor
     let yieldTracker: YieldTracker
     let rlp: Rlp
-    let rlpManager: RlpManager
 
     beforeEach(async () => {
         const FUEL_NETWORK_URL = "http://127.0.0.1:4000/v1/graphql"
@@ -82,23 +79,25 @@ describe("Vault.liquidateLongPosition", () => {
         utils = await deploy("Utils", deployer)
         vaultStorage = await deploy("VaultStorage", deployer)
         vaultUtils = await deploy("VaultUtils", deployer)
-        vault = await deploy("Vault", deployer, { VAULT_STORAGE: toContract(vaultStorage), VAULT_UTILS: toContract(vaultUtils) })
+        vault = await deploy("Vault", deployer, {
+            VAULT_STORAGE: toContract(vaultStorage),
+            VAULT_UTILS: toContract(vaultUtils),
+        })
         vaultPricefeed = await deploy("VaultPricefeed", deployer)
         rusd = await deploy("Rusd", deployer)
-        router = await deploy("Router", deployer)
+
         timeDistributor = await deploy("TimeDistributor", deployer)
         yieldTracker = await deploy("YieldTracker", deployer)
         rlp = await deploy("Rlp", deployer)
-        rlpManager = await deploy("RlpManager", deployer)
 
         attachedContracts = [vaultUtils, vaultStorage]
 
         await call(rusd.functions.initialize(toContract(vault)))
-        await call(router.functions.initialize(toContract(vault), toContract(rusd), addrToAccount(deployer)))
+
         await call(
             vaultStorage.functions.initialize(
                 addrToAccount(deployer),
-                toContract(router),
+                toContract(rusd), // RUSD contract
                 toAsset(rusd), // RUSD native asset
                 toContract(rusd), // RUSD contract
                 toContract(vaultPricefeed),
@@ -127,15 +126,6 @@ describe("Vault.liquidateLongPosition", () => {
         await call(vaultPricefeed.functions.set_asset_config(toAsset(BTC), toContract(BTCPricefeed), 8, false))
 
         await call(rlp.functions.initialize())
-        await call(
-            rlpManager.functions.initialize(
-                toContract(vault),
-                toContract(rusd),
-                toContract(rlp),
-                toContract(ZERO_B256),
-                24 * 3600, // 24 hours
-            ),
-        )
     })
 
     it("liquidate long", async () => {
@@ -166,18 +156,12 @@ describe("Vault.liquidateLongPosition", () => {
         await call(BTC.functions.mint(addrToAccount(user0), expandDecimals(1, 8)))
         await transfer(BTC.as(user1), contrToAccount(vault), 25000) // 0.00025 BTC => 10 USD
 
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(false))).eq("9970000000") // 99.7
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(true))).eq("10219250000") // 102.1925
-
         await call(
             vault
                 .connect(user0)
                 .functions.increase_position(addrToAccount(user0), toAsset(BTC), toAsset(BTC), toUsd(90), true)
                 .addContracts(attachedContracts),
         )
-
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(false))).eq("9970240000") // 99.7024
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(true))).eq("10019271000") // 100.19271
 
         let position = formatObj(
             await getValue(vaultUtils.functions.get_position(addrToAccount(user0), toAsset(BTC), toAsset(BTC), true)),
@@ -278,17 +262,12 @@ describe("Vault.liquidateLongPosition", () => {
         await call(vaultStorage.functions.set_liquidator(addrToAccount(user1), true))
         expect(await getValue(vaultStorage.functions.is_liquidator(addrToAccount(user1)))).eq(true)
 
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(false))).eq("9906499700") // 99.064997
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(true))).eq("10141848500") // 101.418485
         await call(
             vault
                 .connect(user1)
                 .functions.liquidate_position(addrToAccount(user0), toAsset(BTC), toAsset(BTC), true, addrToAccount(user2))
                 .addContracts(attachedContracts),
         )
-
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(false))).eq("10152209700") // 101.522097
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(true))).eq("11411398500") // 114.113985
 
         position = formatObj(
             await getValue(vaultUtils.functions.get_position(addrToAccount(user0), toAsset(BTC), toAsset(BTC), true)),

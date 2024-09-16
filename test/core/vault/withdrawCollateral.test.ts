@@ -3,9 +3,7 @@ import { AbstractContract, Provider, Wallet, WalletUnlocked } from "fuels"
 import {
     Fungible,
     Rlp,
-    RlpManager,
     Pricefeed,
-    Router,
     TimeDistributor,
     Rusd,
     Utils,
@@ -46,13 +44,11 @@ describe("Vault.withdrawCollateral", function () {
     let vaultStorage: VaultStorage
     let vaultUtils: VaultUtils
     let rusd: Rusd
-    let router: Router
+
     let vaultPricefeed: VaultPricefeed
     let timeDistributor: TimeDistributor
     let yieldTracker: YieldTracker
     let rlp: Rlp
-    let rlpManager: RlpManager
-
     beforeEach(async () => {
         const FUEL_NETWORK_URL = "http://127.0.0.1:4000/v1/graphql"
         const localProvider = await Provider.create(FUEL_NETWORK_URL)
@@ -82,23 +78,23 @@ describe("Vault.withdrawCollateral", function () {
         utils = await deploy("Utils", deployer)
         vaultStorage = await deploy("VaultStorage", deployer)
         vaultUtils = await deploy("VaultUtils", deployer)
-        vault = await deploy("Vault", deployer, { VAULT_STORAGE: toContract(vaultStorage), VAULT_UTILS: toContract(vaultUtils) })
+        vault = await deploy("Vault", deployer, {
+            VAULT_STORAGE: toContract(vaultStorage),
+            VAULT_UTILS: toContract(vaultUtils),
+        })
         vaultPricefeed = await deploy("VaultPricefeed", deployer)
         rusd = await deploy("Rusd", deployer)
-        router = await deploy("Router", deployer)
         timeDistributor = await deploy("TimeDistributor", deployer)
         yieldTracker = await deploy("YieldTracker", deployer)
         rlp = await deploy("Rlp", deployer)
-        rlpManager = await deploy("RlpManager", deployer)
-
         attachedContracts = [vaultUtils, vaultStorage]
 
         await call(rusd.functions.initialize(toContract(vault)))
-        await call(router.functions.initialize(toContract(vault), toContract(rusd), addrToAccount(deployer)))
+
         await call(
             vaultStorage.functions.initialize(
                 addrToAccount(deployer),
-                toContract(router),
+                toContract(rusd),
                 toAsset(rusd), // RUSD native asset
                 toContract(rusd), // RUSD contract
                 toContract(vaultPricefeed),
@@ -127,15 +123,6 @@ describe("Vault.withdrawCollateral", function () {
         await call(vaultPricefeed.functions.set_asset_config(toAsset(BTC), toContract(BTCPricefeed), 8, false))
 
         await call(rlp.functions.initialize())
-        await call(
-            rlpManager.functions.initialize(
-                toContract(vault),
-                toContract(rusd),
-                toContract(rlp),
-                toContract(ZERO_B256),
-                24 * 3600, // 24 hours
-            ),
-        )
     })
 
     it("withdraw collateral", async () => {
@@ -371,9 +358,6 @@ describe("Vault.withdrawCollateral", function () {
         await call(BNB.functions.mint(contrToAccount(vault), expandDecimals(10, 8)))
         await call(vault.functions.buy_rusd(toAsset(BNB), addrToAccount(user1)).addContracts(attachedContracts))
 
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(false))).eq("498500000000") // 4985
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(true))).eq("498500000000") // 4985
-
         await call(BNB.functions.mint(contrToAccount(vault), expandDecimals(1, 8)))
         await call(
             vault
@@ -382,15 +366,9 @@ describe("Vault.withdrawCollateral", function () {
                 .addContracts(attachedContracts),
         )
 
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(false))).eq("498500000000") // 4985
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(true))).eq("498500000000") // 4985
-
         await call(BNBPricefeed.functions.set_latest_answer(toPrice(750)))
         await call(BNBPricefeed.functions.set_latest_answer(toPrice(750)))
         await call(BNBPricefeed.functions.set_latest_answer(toPrice(750)))
-
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(false))).eq("672650000000") // 6726.5
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(true))).eq("672650000000") // 6726.5
 
         await call(BNB.functions.mint(contrToAccount(vault), expandDecimals(1, 8)))
         await call(
@@ -399,9 +377,6 @@ describe("Vault.withdrawCollateral", function () {
                 .functions.increase_position(addrToAccount(user0), toAsset(BNB), toAsset(BNB), toUsd(0), true)
                 .addContracts(attachedContracts),
         )
-
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(false))).eq("672650000000") // 6726.5
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(true))).eq("672650000000") // 6726.5
 
         await call(
             vault
@@ -418,17 +393,9 @@ describe("Vault.withdrawCollateral", function () {
                 .addContracts(attachedContracts),
         )
 
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(false))).eq("672650000500") // 6726.5000000000000005
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(true))).eq("672650000500") // 6726.5000000000000005
-
         await call(BNBPricefeed.functions.set_latest_answer(toPrice(400)))
         await call(BNBPricefeed.functions.set_latest_answer(toPrice(400)))
         await call(BNBPricefeed.functions.set_latest_answer(toPrice(400)))
-
-        // @TODO: actually: 417173333333
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(false))).eq("417173333600") // 4171.7333333333333336
-        // @TODO: actually: 417173333333
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(true))).eq("417173333600") // 4171.7333333333333336
 
         await call(
             vault
@@ -445,11 +412,6 @@ describe("Vault.withdrawCollateral", function () {
                 .addContracts(attachedContracts),
         )
 
-        // @TODO: actually: 417173333333
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(false))).eq("417173333600") // 4171.7333333333333336
-        // @TODO: actually: 417173333333
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(true))).eq("417173333600") // 4171.7333333333333336
-
         await call(
             vault
                 .connect(user0)
@@ -464,11 +426,6 @@ describe("Vault.withdrawCollateral", function () {
                 )
                 .addContracts(attachedContracts),
         )
-
-        // @TODO: actually: 417173333333
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(false))).eq("417173333600") // 4171.7333333333333336
-        // @TODO: actually: 417173333333
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(true))).eq("417173333600") // 4171.7333333333333336
     })
 
     it("withdraw collateral short", async () => {
@@ -484,9 +441,6 @@ describe("Vault.withdrawCollateral", function () {
         await call(DAI.functions.mint(contrToAccount(vault), expandDecimals(8000, 8)))
         await call(vault.functions.buy_rusd(toAsset(DAI), addrToAccount(user1)).addContracts(attachedContracts))
 
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(false))).eq("797600000000") // 7976
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(true))).eq("797600000000") // 7976
-
         await call(DAI.functions.mint(contrToAccount(vault), expandDecimals(500, 8)))
         await call(
             vault
@@ -495,15 +449,9 @@ describe("Vault.withdrawCollateral", function () {
                 .addContracts(attachedContracts),
         )
 
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(false))).eq("797600000000") // 7976
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(true))).eq("797600000000") // 7976
-
         await call(BNBPricefeed.functions.set_latest_answer(toPrice(525)))
         await call(BNBPricefeed.functions.set_latest_answer(toPrice(525)))
         await call(BNBPricefeed.functions.set_latest_answer(toPrice(525)))
-
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(false))).eq("807600000000") // 8076
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(true))).eq("807600000000") // 8076
 
         await call(DAI.functions.mint(contrToAccount(vault), expandDecimals(500, 8)))
         await call(
@@ -513,9 +461,6 @@ describe("Vault.withdrawCollateral", function () {
                 .addContracts(attachedContracts),
         )
 
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(false))).eq("807600000000") // 8076
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(true))).eq("807600000000") // 8076
-
         await call(
             vault
                 .connect(user0)
@@ -531,15 +476,9 @@ describe("Vault.withdrawCollateral", function () {
                 .addContracts(attachedContracts),
         )
 
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(false))).eq("807600000000") // 8076
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(true))).eq("807600000000") // 8076
-
         await call(BNBPricefeed.functions.set_latest_answer(toPrice(475)))
         await call(BNBPricefeed.functions.set_latest_answer(toPrice(475)))
         await call(BNBPricefeed.functions.set_latest_answer(toPrice(475)))
-
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(false))).eq("787600000000") // 7876
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(true))).eq("787600000000") // 7876
 
         await call(
             vault
@@ -555,8 +494,5 @@ describe("Vault.withdrawCollateral", function () {
                 )
                 .addContracts(attachedContracts),
         )
-
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(false))).eq("787600000000") // 7876
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(true))).eq("787600000000") // 7876
     })
 })

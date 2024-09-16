@@ -3,9 +3,7 @@ import { AbstractContract, Provider, Wallet, WalletUnlocked } from "fuels"
 import {
     Fungible,
     Rlp,
-    RlpManager,
     Pricefeed,
-    Router,
     TimeDistributor,
     Rusd,
     Utils,
@@ -45,13 +43,11 @@ describe("Vault.sellRUSD", function () {
     let vaultUtils: VaultUtils
     let rusd: Rusd
     let RUSD: string // the RUSD fungible asset
-    let router: Router
+
     let vaultPricefeed: VaultPricefeed
     let timeDistributor: TimeDistributor
     let yieldTracker: YieldTracker
     let rlp: Rlp
-    let rlpManager: RlpManager
-
     beforeEach(async () => {
         const FUEL_NETWORK_URL = "http://127.0.0.1:4000/v1/graphql"
         const localProvider = await Provider.create(FUEL_NETWORK_URL)
@@ -81,25 +77,25 @@ describe("Vault.sellRUSD", function () {
         utils = await deploy("Utils", deployer)
         vaultStorage = await deploy("VaultStorage", deployer)
         vaultUtils = await deploy("VaultUtils", deployer)
-        vault = await deploy("Vault", deployer, { VAULT_STORAGE: toContract(vaultStorage), VAULT_UTILS: toContract(vaultUtils) })
+        vault = await deploy("Vault", deployer, {
+            VAULT_STORAGE: toContract(vaultStorage),
+            VAULT_UTILS: toContract(vaultUtils),
+        })
         vaultPricefeed = await deploy("VaultPricefeed", deployer)
         rusd = await deploy("Rusd", deployer)
-        router = await deploy("Router", deployer)
         timeDistributor = await deploy("TimeDistributor", deployer)
         yieldTracker = await deploy("YieldTracker", deployer)
         rlp = await deploy("Rlp", deployer)
-        rlpManager = await deploy("RlpManager", deployer)
-
         attachedContracts = [vaultUtils, vaultStorage]
 
         RUSD = getAssetId(rusd)
 
         await call(rusd.functions.initialize(toContract(vault)))
-        await call(router.functions.initialize(toContract(vault), toContract(rusd), addrToAccount(deployer)))
+
         await call(
             vaultStorage.functions.initialize(
                 addrToAccount(deployer),
-                toContract(router),
+                toContract(rusd),
                 toAsset(rusd), // RUSD native asset
                 toContract(rusd), // RUSD contract
                 toContract(vaultPricefeed),
@@ -128,15 +124,6 @@ describe("Vault.sellRUSD", function () {
         await call(vaultPricefeed.functions.set_asset_config(toAsset(BTC), toContract(BTCPricefeed), 8, false))
 
         await call(rlp.functions.initialize())
-        await call(
-            rlpManager.functions.initialize(
-                toContract(vault),
-                toContract(rusd),
-                toContract(rlp),
-                toContract(ZERO_B256),
-                24 * 3600, // 24 hours
-            ),
-        )
     })
 
     it("sellRUSD", async () => {
@@ -152,7 +139,6 @@ describe("Vault.sellRUSD", function () {
 
         await call(BNB.functions.mint(addrToAccount(user0), 100))
 
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(true))).eq("0")
         expect(await getBalance(user0, RUSD)).eq("0")
         expect(await getBalance(user1, RUSD)).eq("0")
         expect(await getValStr(vaultStorage.functions.get_fee_reserves(toAsset(BNB)))).eq("0")
@@ -169,7 +155,6 @@ describe("Vault.sellRUSD", function () {
         expect(await getValStr(vaultUtils.functions.get_rusd_amount(toAsset(BNB)))).eq("29700")
         expect(await getValStr(vaultUtils.functions.get_pool_amounts(toAsset(BNB)))).eq(asStr(100 - 1))
         expect(await getBalance(user0, BNB)).eq("0")
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(true))).eq("29700")
 
         await expect(
             call(vault.connect(user0).functions.sell_rusd(toAsset(BNB), addrToAccount(user1)).addContracts(attachedContracts)),
@@ -191,7 +176,6 @@ describe("Vault.sellRUSD", function () {
         expect(await getValStr(vaultUtils.functions.get_pool_amounts(toAsset(BNB)))).eq(asStr(100 - 1 - 50))
         expect(await getBalance(user0, BNB)).eq("0")
         expect(await getBalance(user1, BNB)).eq(asStr(50 - 1)) // (15000 / 300) => 50
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(true))).eq(asStr(29700 - 15000))
     })
 
     it("sellRUSD after a price increase", async () => {
@@ -200,7 +184,6 @@ describe("Vault.sellRUSD", function () {
 
         await call(BNB.functions.mint(addrToAccount(user0), 100))
 
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(true))).eq("0")
         expect(await getBalance(user0, RUSD)).eq("0")
         expect(await getBalance(user1, RUSD)).eq("0")
         expect(await getValStr(vaultStorage.functions.get_fee_reserves(toAsset(BNB)))).eq("0")
@@ -217,13 +200,10 @@ describe("Vault.sellRUSD", function () {
         expect(await getValStr(vaultUtils.functions.get_rusd_amount(toAsset(BNB)))).eq("29700")
         expect(await getValStr(vaultUtils.functions.get_pool_amounts(toAsset(BNB)))).eq(asStr(100 - 1))
         expect(await getBalance(user0, BNB)).eq("0")
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(true))).eq("29700")
 
         await call(BNBPricefeed.functions.set_latest_answer(toPrice(400)))
         await call(BNBPricefeed.functions.set_latest_answer(toPrice(600)))
         await call(BNBPricefeed.functions.set_latest_answer(toPrice(500)))
-
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(false))).eq("39600")
 
         await transfer(rusd.as(user0) as any, contrToAccount(vault), 15000)
         await call(vault.connect(user0).functions.sell_rusd(toAsset(BNB), addrToAccount(user1)).addContracts(attachedContracts))
@@ -235,7 +215,6 @@ describe("Vault.sellRUSD", function () {
         expect(await getValStr(vaultUtils.functions.get_pool_amounts(toAsset(BNB)))).eq(asStr(100 - 1 - 25))
         expect(await getBalance(user0, BNB)).eq("0")
         expect(await getBalance(user1, BNB)).eq(asStr(25 - 1)) // (15000 / 600) => 25
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(false))).eq("29600")
     })
 
     it("sellRUSD redeem based on price", async () => {
@@ -251,10 +230,8 @@ describe("Vault.sellRUSD", function () {
         expect(await getValStr(vaultUtils.functions.get_pool_amounts(toAsset(BTC)))).eq("0")
         expect(await getBalance(user0, BTC)).eq(expandDecimals(2, 8))
 
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(true))).eq("0")
         await transfer(BTC.as(user0), contrToAccount(vault), expandDecimals(2, 8))
         await call(vault.connect(user0).functions.buy_rusd(toAsset(BTC), addrToAccount(user0)).addContracts(attachedContracts))
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(true))).eq("11964000000000") // 119,640
 
         expect(await getBalance(user0, RUSD)).eq("11964000000000") // 119,640
         expect(await getBalance(user1, RUSD)).eq("0")
@@ -268,14 +245,12 @@ describe("Vault.sellRUSD", function () {
         await call(BTCPricefeed.functions.set_latest_answer(toPrice(80000)))
         await call(BTCPricefeed.functions.set_latest_answer(toPrice(83000)))
 
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(false))).eq(expandDecimals(159520)) // 199400000 / (10 ** 8) * 80,000
         await transfer(rusd.as(user0) as any, contrToAccount(vault), expandDecimals(10000))
         await call(vault.connect(user0).functions.sell_rusd(toAsset(BTC), addrToAccount(user1)).addContracts(attachedContracts))
 
         expect(await getBalance(user1, BTC)).eq("12012047") // 0.12012047 BTC, 0.12012047 * 83000 => 9969.999
         expect(await getValStr(vaultStorage.functions.get_fee_reserves(toAsset(BTC)))).eq("636145") // 0.00636145
         expect(await getValStr(vaultUtils.functions.get_pool_amounts(toAsset(BTC)))).eq("187351808") // 199400000-(636145-600000)-12012047 => 187351808
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(false))).eq("14988144640000") // 149881.4464, 87351808 / (10 ** 8) * 80,000
     })
 
     it("sellRUSD for stableTokens", async () => {
@@ -304,12 +279,10 @@ describe("Vault.sellRUSD", function () {
         expect(await getValStr(vaultUtils.functions.get_rusd_amount(toAsset(DAI)))).eq("0")
         expect(await getValStr(vaultUtils.functions.get_pool_amounts(toAsset(DAI)))).eq("0")
         expect(await getBalance(user0, DAI)).eq(expandDecimals(10000, 8))
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(true))).eq("0")
 
         await transfer(DAI.as(user0), contrToAccount(vault), expandDecimals(10000, 8))
         await call(vault.connect(user0).functions.buy_rusd(toAsset(DAI), addrToAccount(user0)).addContracts(attachedContracts))
 
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(true))).eq(expandDecimals(9996, 8))
         expect(await getBalance(user0, RUSD)).eq(expandDecimals(9996, 8))
         expect(await getBalance(user1, RUSD)).eq("0")
         expect(await getValStr(vaultStorage.functions.get_fee_reserves(toAsset(DAI)))).eq(expandDecimals(4, 8))
@@ -329,8 +302,6 @@ describe("Vault.sellRUSD", function () {
         await call(
             vault.connect(user0).functions.swap(toAsset(BTC), toAsset(DAI), addrToAccount(user2)).addContracts(attachedContracts),
         )
-
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(true))).eq(expandDecimals(9996, 8))
 
         expect(await getValStr(vaultStorage.functions.get_fee_reserves(toAsset(DAI)))).eq(expandDecimals(19, 8))
         expect(await getValStr(vaultUtils.functions.get_rusd_amount(toAsset(DAI)))).eq(expandDecimals(4996, 8))

@@ -3,9 +3,7 @@ import { AbstractContract, Provider, Wallet, WalletUnlocked } from "fuels"
 import {
     Fungible,
     Rlp,
-    RlpManager,
     Pricefeed,
-    Router,
     TimeDistributor,
     Rusd,
     Utils,
@@ -45,13 +43,11 @@ describe("Vault.increaseShortPosition", function () {
     let vaultStorage: VaultStorage
     let vaultUtils: VaultUtils
     let rusd: Rusd
-    let router: Router
+
     let vaultPricefeed: VaultPricefeed
     let timeDistributor: TimeDistributor
     let yieldTracker: YieldTracker
     let rlp: Rlp
-    let rlpManager: RlpManager
-
     beforeEach(async () => {
         const FUEL_NETWORK_URL = "http://127.0.0.1:4000/v1/graphql"
         const localProvider = await Provider.create(FUEL_NETWORK_URL)
@@ -81,23 +77,23 @@ describe("Vault.increaseShortPosition", function () {
         utils = await deploy("Utils", deployer)
         vaultStorage = await deploy("VaultStorage", deployer)
         vaultUtils = await deploy("VaultUtils", deployer)
-        vault = await deploy("Vault", deployer, { VAULT_STORAGE: toContract(vaultStorage), VAULT_UTILS: toContract(vaultUtils) })
+        vault = await deploy("Vault", deployer, {
+            VAULT_STORAGE: toContract(vaultStorage),
+            VAULT_UTILS: toContract(vaultUtils),
+        })
         vaultPricefeed = await deploy("VaultPricefeed", deployer)
         rusd = await deploy("Rusd", deployer)
-        router = await deploy("Router", deployer)
         timeDistributor = await deploy("TimeDistributor", deployer)
         yieldTracker = await deploy("YieldTracker", deployer)
         rlp = await deploy("Rlp", deployer)
-        rlpManager = await deploy("RlpManager", deployer)
-
         attachedContracts = [vaultUtils, vaultStorage]
 
         await call(rusd.functions.initialize(toContract(vault)))
-        await call(router.functions.initialize(toContract(vault), toContract(rusd), addrToAccount(deployer)))
+
         await call(
             vaultStorage.functions.initialize(
                 addrToAccount(deployer),
-                toContract(router),
+                toContract(rusd),
                 toAsset(rusd), // RUSD native asset
                 toContract(rusd), // RUSD contract
                 toContract(vaultPricefeed),
@@ -126,15 +122,6 @@ describe("Vault.increaseShortPosition", function () {
         await call(vaultPricefeed.functions.set_asset_config(toAsset(BTC), toContract(BTCPricefeed), 8, false))
 
         await call(rlp.functions.initialize())
-        await call(
-            rlpManager.functions.initialize(
-                toContract(vault),
-                toContract(rusd),
-                toContract(rlp),
-                toContract(ZERO_B256),
-                24 * 3600, // 24 hours
-            ),
-        )
     })
 
     it("increasePosition short validations", async () => {
@@ -292,8 +279,6 @@ describe("Vault.increaseShortPosition", function () {
         let globalDelta = formatObj(await getValue(vaultUtils.functions.get_global_short_delta(toAsset(BTC))))
         expect(await globalDelta[0]).eq(false)
         expect(await globalDelta[1]).eq("0")
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(true))).eq("0")
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(false))).eq("0")
 
         await call(
             vaultStorage.functions.set_fees(
@@ -354,8 +339,6 @@ describe("Vault.increaseShortPosition", function () {
         globalDelta = formatObj(await getValue(vaultUtils.functions.get_global_short_delta(toAsset(BTC))))
         expect(await globalDelta[0]).eq(false)
         expect(await globalDelta[1]).eq("0")
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(true))).eq("49980000000")
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(false))).eq("49980000000")
 
         await transfer(DAI.as(user0), contrToAccount(vault), expandDecimals(20))
         await expect(
@@ -423,8 +406,6 @@ describe("Vault.increaseShortPosition", function () {
         globalDelta = formatObj(await getValue(vaultUtils.functions.get_global_short_delta(toAsset(BTC))))
         expect(await globalDelta[0]).eq(false)
         expect(await globalDelta[1]).eq(toUsd(2.25))
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(true))).eq("50205000000")
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(false))).eq("49980000000")
 
         let delta = formatObj(
             await getValue(vaultUtils.functions.get_position_delta(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false)),
@@ -445,8 +426,6 @@ describe("Vault.increaseShortPosition", function () {
         globalDelta = formatObj(await getValue(vaultUtils.functions.get_global_short_delta(toAsset(BTC))))
         expect(await globalDelta[0]).eq(false)
         expect(await globalDelta[1]).eq(toUsd(4.5))
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(true))).eq("50430000000") // 499.8 + 4.5
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(false))).eq("50430000000") // 499.8 + 4.5
 
         await call(
             vault
@@ -493,8 +472,6 @@ describe("Vault.increaseShortPosition", function () {
         globalDelta = formatObj(await getValue(vaultUtils.functions.get_global_short_delta(toAsset(BTC))))
         expect(await globalDelta[0]).eq(false)
         expect(await globalDelta[1]).eq(toUsd(2))
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(true))).eq("50430000000") // 499.8 + 4.5
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(false))).eq("50430000000") // 499.8 + 4.5
 
         await call(DAI.functions.mint(contrToAccount(vault), expandDecimals(50)))
         await call(
@@ -512,8 +489,6 @@ describe("Vault.increaseShortPosition", function () {
         globalDelta = formatObj(await getValue(vaultUtils.functions.get_global_short_delta(toAsset(BTC))))
         expect(await globalDelta[0]).eq(false)
         expect(await globalDelta[1]).eq(toUsd(2))
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(true))).eq("50430000000") // 502.3 + 2
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(false))).eq("50430000000") // 502.3 + 2
 
         await call(BTCPricefeed.functions.set_latest_answer(toPrice(40000)))
         await call(BTCPricefeed.functions.set_latest_answer(toPrice(40000)))
@@ -534,8 +509,6 @@ describe("Vault.increaseShortPosition", function () {
         globalDelta = formatObj(await getValue(vaultUtils.functions.get_global_short_delta(toAsset(BTC))))
         expect(await globalDelta[0]).eq(true)
         expect(await globalDelta[1]).eq("3761904761904761904761904761904")
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(true))).eq("49853809523") // 502.3 + 1 - 4.76 => 498.53
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(false))).eq("49277619047") // 492.77619047619047619
 
         await call(DAI.functions.mint(contrToAccount(vault), expandDecimals(20)))
         await call(
@@ -553,8 +526,6 @@ describe("Vault.increaseShortPosition", function () {
         globalDelta = formatObj(await getValue(vaultUtils.functions.get_global_short_delta(toAsset(BTC))))
         expect(await globalDelta[0]).eq(true)
         expect(await globalDelta[1]).eq("2261904761904761904761904761904")
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(true))).eq("50003809523") // 500.038095238095238095
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(false))).eq("49277619047") // 492.77619047619047619
 
         await call(DAI.functions.mint(contrToAccount(vault), expandDecimals(20)))
 

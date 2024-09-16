@@ -3,9 +3,7 @@ import { AbstractContract, Provider, Wallet, WalletUnlocked } from "fuels"
 import {
     Fungible,
     Rlp,
-    RlpManager,
     Pricefeed,
-    Router,
     TimeDistributor,
     Rusd,
     Utils,
@@ -46,13 +44,11 @@ describe("Vault.depositCollateral", () => {
     let vaultStorage: VaultStorage
     let vaultUtils: VaultUtils
     let rusd: Rusd
-    let router: Router
+
     let vaultPricefeed: VaultPricefeed
     let timeDistributor: TimeDistributor
     let yieldTracker: YieldTracker
     let rlp: Rlp
-    let rlpManager: RlpManager
-
     beforeEach(async () => {
         const FUEL_NETWORK_URL = "http://127.0.0.1:4000/v1/graphql"
         const localProvider = await Provider.create(FUEL_NETWORK_URL)
@@ -82,23 +78,23 @@ describe("Vault.depositCollateral", () => {
         utils = await deploy("Utils", deployer)
         vaultStorage = await deploy("VaultStorage", deployer)
         vaultUtils = await deploy("VaultUtils", deployer)
-        vault = await deploy("Vault", deployer, { VAULT_STORAGE: toContract(vaultStorage), VAULT_UTILS: toContract(vaultUtils) })
+        vault = await deploy("Vault", deployer, {
+            VAULT_STORAGE: toContract(vaultStorage),
+            VAULT_UTILS: toContract(vaultUtils),
+        })
         vaultPricefeed = await deploy("VaultPricefeed", deployer)
         rusd = await deploy("Rusd", deployer)
-        router = await deploy("Router", deployer)
         timeDistributor = await deploy("TimeDistributor", deployer)
         yieldTracker = await deploy("YieldTracker", deployer)
         rlp = await deploy("Rlp", deployer)
-        rlpManager = await deploy("RlpManager", deployer)
-
         attachedContracts = [vaultUtils, vaultStorage]
 
         await call(rusd.functions.initialize(toContract(vault)))
-        await call(router.functions.initialize(toContract(vault), toContract(rusd), addrToAccount(deployer)))
+
         await call(
             vaultStorage.functions.initialize(
                 addrToAccount(deployer),
-                toContract(router),
+                toContract(rusd),
                 toAsset(rusd), // RUSD native asset
                 toContract(rusd), // RUSD contract
                 toContract(vaultPricefeed),
@@ -127,15 +123,6 @@ describe("Vault.depositCollateral", () => {
         await call(vaultPricefeed.functions.set_asset_config(toAsset(BTC), toContract(BTCPricefeed), 8, false))
 
         await call(rlp.functions.initialize())
-        await call(
-            rlpManager.functions.initialize(
-                toContract(vault),
-                toContract(rusd),
-                toContract(rlp),
-                toContract(ZERO_B256),
-                24 * 3600, // 24 hours
-            ),
-        )
     })
 
     it("deposit collateral", async () => {
@@ -212,18 +199,12 @@ describe("Vault.depositCollateral", () => {
         expect(position[3]).eq("0") // entryFundingRate
         expect(position[4]).eq("0") // reserveAmount
 
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(false))).eq("9371680000") // 93.7168
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(true))).eq("9605972000") // 96.05972
-
         await call(
             vault
                 .connect(user0)
                 .functions.increase_position(addrToAccount(user0), toAsset(BTC), toAsset(BTC), toUsd(47), true)
                 .addContracts(attachedContracts),
         )
-
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(false))).eq("9371820000") // 93.7182
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(true))).eq("9510998000") // 95.10998
 
         expect(await getValStr(vaultUtils.functions.get_pool_amounts(toAsset(BTC)))).eq(asStr(256792 - 114))
         expect(await getValStr(vaultUtils.functions.get_reserved_amounts(toAsset(BTC)))).eq("117500")
@@ -251,18 +232,12 @@ describe("Vault.depositCollateral", () => {
 
         await transfer(BTC.as(user0), contrToAccount(vault), 22500)
 
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(false))).eq("9371820000") // 93.7182
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(true))).eq("9510998000") // 95.10998
-
         await call(
             vault
                 .connect(user0)
                 .functions.increase_position(addrToAccount(user0), toAsset(BTC), toAsset(BTC), 0, true)
                 .addContracts(attachedContracts),
         )
-
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(false))).eq("9371820000") // 93.7182
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(true))).eq("9533498000") // 95.33498
 
         position = formatObj(
             await getValue(vaultUtils.functions.get_position(addrToAccount(user0), toAsset(BTC), toAsset(BTC), true)),
@@ -287,9 +262,6 @@ describe("Vault.depositCollateral", () => {
         await call(BTCPricefeed.functions.set_latest_answer(toPrice(51000)))
         await call(BTCPricefeed.functions.set_latest_answer(toPrice(50000)))
 
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(false))).eq("10988600000") // 109.886
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(true))).eq("11150278000") // 111.50278
-
         await transfer(BTC.as(user0), contrToAccount(vault), 100)
         await call(
             vault
@@ -297,9 +269,6 @@ describe("Vault.depositCollateral", () => {
                 .functions.increase_position(addrToAccount(user0), toAsset(BTC), toAsset(BTC), 0, true)
                 .addContracts(attachedContracts),
         )
-
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(false))).eq("10988600000") // 109.886
-        expect(await getValStr(rlpManager.functions.get_aum_in_rusd(true))).eq("11150378000") // 111.50378
 
         position = formatObj(
             await getValue(vaultUtils.functions.get_position(addrToAccount(user0), toAsset(BTC), toAsset(BTC), true)),
