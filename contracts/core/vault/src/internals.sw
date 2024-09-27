@@ -13,7 +13,6 @@ use core_interfaces::{
     vault_utils::VaultUtils,
     vault_storage::{
         VaultStorage,
-        Position,
         PositionKey,
     },
 };

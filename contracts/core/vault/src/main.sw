@@ -32,17 +32,7 @@ use helpers::{
     signed_256::*,
     zero::*
 };
-use core_interfaces::{
-    vault::Vault,
-    vault_utils::VaultUtils,
-    vault_storage::{
-        VaultStorage,
-        Position,
-        PositionKey,
-    },
-    vault_pricefeed::VaultPricefeed,
-};
-use asset_interfaces::rusd::RUSD;
+use core_interfaces::vault::Vault;
 use internals::*;
 use utils::*;
 use events::*;

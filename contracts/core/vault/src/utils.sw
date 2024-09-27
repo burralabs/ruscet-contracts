@@ -14,14 +14,12 @@ use core_interfaces::{
     vault_storage::{
         VaultStorage,
         Position,
-        PositionKey,
     },
 };
 use helpers::{
     time::get_unix_timestamp,
     context::*, 
     utils::*,
-    transfer::transfer_assets,
     signed_256::*,
     zero::*
 };
@@ -181,28 +179,28 @@ pub fn _increase_position(
         vault_utils.increase_global_short_size(index_asset, size_delta);
     }
 
-    // log(IncreasePosition {
-    //     key: position_key,
-    //     account,
-    //     collateral_asset,
-    //     index_asset,
-    //     collateral_delta: collateral_delta_usd,
-    //     size_delta,
-    //     is_long,
-    //     price,
-    //     fee,
-    // });
+    log(IncreasePosition {
+        key: position_key,
+        account,
+        collateral_asset,
+        index_asset,
+        collateral_delta: collateral_delta_usd,
+        size_delta,
+        is_long,
+        price,
+        fee,
+    });
 
-    // log(UpdatePosition {
-    //     key: position_key,
-    //     size: position.size,
-    //     collateral: position.collateral,
-    //     average_price: position.average_price,
-    //     entry_funding_rate: position.entry_funding_rate,
-    //     reserve_amount: position.reserve_amount,
-    //     realized_pnl: position.realized_pnl,
-    //     mark_price: price,
-    // });
+    log(UpdatePosition {
+        key: position_key,
+        size: position.size,
+        collateral: position.collateral,
+        average_price: position.average_price,
+        entry_funding_rate: position.entry_funding_rate,
+        reserve_amount: position.reserve_amount,
+        realized_pnl: position.realized_pnl,
+        mark_price: price,
+    });
 
     vault_storage.write_position(position_key, position);
 }
