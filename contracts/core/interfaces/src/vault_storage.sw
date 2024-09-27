@@ -244,9 +244,6 @@ abi VaultStorage {
     fn write_asset_balance(asset: AssetId, bal: u64);
 
     #[storage(write)]
-    fn write_buffer_amount(asset: AssetId, buffer_amount: u256);
-
-    #[storage(write)]
     fn write_last_funding_time(asset: AssetId, last_funding_time: u64);
 
     #[storage(write)]

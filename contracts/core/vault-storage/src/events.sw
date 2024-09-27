@@ -49,11 +49,6 @@ pub struct WriteMaxRusdAmount {
     pub max_rusd_amount: u256,
 }
 
-pub struct WriteBufferAmount {
-    pub asset: AssetId,
-    pub buffer_amount: u256,
-}
-
 pub struct WriteLastFundingTime {
     pub asset: AssetId,
     pub last_funding_time: u64,
@@ -78,3 +73,32 @@ pub struct SetMaxGlobalShortSize {
     pub asset: AssetId,
     pub max_global_short_size: u256,
 }
+
+pub struct WriteAuthorize {
+    pub account: Account,
+    pub is_authorized: bool,
+}
+
+pub struct SetLiquidator {
+    pub liquidator: Account,
+    pub is_active: bool,
+}
+
+pub struct SetManager {
+    pub manager: Account,
+    pub is_manager: bool,
+}
+
+pub struct SetBufferAmount {
+    pub asset: AssetId,
+    pub buffer_amount: u256,
+}
+
+pub struct SetMaxLeverage {
+    pub max_leverage: u64,
+}
+
+pub struct SetPricefeed {
+    pub pricefeed: ContractId,
+}
+

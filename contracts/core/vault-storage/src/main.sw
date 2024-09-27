@@ -170,30 +170,35 @@ impl VaultStorage for Contract {
         _only_gov();
 
         storage.is_write_authorized.insert(account, is_authorized);
+        log(WriteAuthorize { account, is_authorized });
     }
 
     #[storage(write)]
     fn set_liquidator(liquidator: Account, is_active: bool) {
         _only_gov();
-        storage.is_liquidator.insert(liquidator, is_active)
+        storage.is_liquidator.insert(liquidator, is_active);
+        log(SetLiquidator { liquidator, is_active });
     }
 
     #[storage(write)]
     fn set_manager(manager: Account, is_manager: bool) {
         _only_gov();
-        storage.is_manager.insert(manager, is_manager)
+        storage.is_manager.insert(manager, is_manager);
+        log(SetManager { manager, is_manager });
     }
 
     #[storage(write)]
     fn set_buffer_amount(asset: AssetId, buffer_amount: u256) {
         _only_gov();
         storage.buffer_amounts.insert(asset, buffer_amount);
+        log(SetBufferAmount { asset, buffer_amount });
     }
 
     #[storage(write)]
     fn set_max_leverage(max_leverage: u64) {
         _only_gov();
         storage.max_leverage.write(max_leverage);
+        log(SetMaxLeverage { max_leverage });
     }
 
     #[storage(write)]
@@ -205,6 +210,7 @@ impl VaultStorage for Contract {
         );
         
         storage.pricefeed_provider.write(pricefeed);
+        log(SetPricefeed { pricefeed });
     }
 
     #[storage(read, write)]
@@ -583,14 +589,6 @@ impl VaultStorage for Contract {
 
         storage.asset_balances.insert(asset, balance);
         log(WriteAssetBalance { asset, balance });
-    }
-
-    #[storage(write)]
-    fn write_buffer_amount(asset: AssetId, buffer_amount: u256) {
-        _only_write_authorized();
-
-        storage.buffer_amounts.insert(asset, buffer_amount);
-        log(WriteBufferAmount { asset, buffer_amount });
     }
 
     #[storage(write)]
