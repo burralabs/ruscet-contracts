@@ -202,6 +202,13 @@ impl VaultStorage for Contract {
     }
 
     #[storage(write)]
+    fn set_max_rusd_amount(asset: AssetId, max_rusd_amount: u256) {
+        _only_gov();
+        storage.max_rusd_amounts.insert(asset, max_rusd_amount);
+        log(SetMaxRusdAmount { asset, max_rusd_amount });
+    }
+
+    #[storage(write)]
     fn set_pricefeed(pricefeed: ContractId) {
         _only_gov();
         require(
@@ -573,14 +580,6 @@ impl VaultStorage for Contract {
     #[storage(write)]
     fn set_router(router: Account, is_active: bool) {
         storage.approved_routers.get(get_sender()).insert(router, is_active);
-    }
-
-    #[storage(write)]
-    fn write_max_rusd_amount(asset: AssetId, max_rusd_amount: u256) {
-        _only_write_authorized();
-
-        storage.max_rusd_amounts.insert(asset, max_rusd_amount);
-        log(WriteMaxRusdAmount { asset, max_rusd_amount });
     }
 
     #[storage(write)]
