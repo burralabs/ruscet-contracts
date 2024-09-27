@@ -37,7 +37,6 @@ use core_interfaces::{
         VaultStorage,
         Position,
     },
-    vault_pricefeed::VaultPricefeed,
 };
 use constants::*;
 use errors::*;

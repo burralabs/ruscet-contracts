@@ -13,7 +13,6 @@ mod events;
 mod errors;
 
 use std::{
-    asset::mint_to,
     context::*,
     revert::require,
     storage::{

@@ -14,7 +14,6 @@ __     __          _ _     _   _ _   _ _
 */
 
 use std::{
-    block::{timestamp as tai64_timestamp},
     context::*,
     revert::require,
     storage::storage_vec::*,
@@ -31,7 +30,6 @@ use core_interfaces::{
     vault_utils::VaultUtils,
     vault_storage::{
         VaultStorage,
-        Position,
         PositionKey,
     },
     vault_pricefeed::VaultPricefeed,
