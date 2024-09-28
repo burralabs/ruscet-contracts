@@ -100,11 +100,16 @@ impl YieldTracker for Contract {
     }
 
     #[storage(read)]
-    fn claimable(account: Account) -> u256 {
+    fn claimable(
+        account: Account,
+        // staked balance of the account
+        // we can't accurately calculate the staked balance of an account onchain because of Fuel's UTXO model
+        // so we pass it as an argument to this function
+        staked_balance: u256
+    ) -> u256 {
         let yield_asset = abi(YieldAsset, storage.yield_asset.read().into());
         let time_distributor = abi(TimeDistributor, storage.time_distributor.read().into());
 
-        let staked_balance = yield_asset.staked_balance_of(account).as_u256();
         if staked_balance == 0 {
             return storage.claimable_reward.get(account).try_read().unwrap_or(0);
         }
@@ -123,28 +128,34 @@ impl YieldTracker for Contract {
     }
 
     /*
-          ____  ____        _     _ _      
+          ____  ____        _     _ _  
          / / / |  _ \ _   _| |__ | (_) ___ 
         / / /  | |_) | | | | '_ \| | |/ __|
        / / /   |  __/| |_| | |_) | | | (__ 
       /_/_/    |_|    \__,_|_.__/|_|_|\___|
     */
     #[storage(read, write)]
-    fn update_rewards(account: Account) {
-        _update_rewards(account);
+    fn update_rewards(
+        account: Account,
+        // staked balance of the account
+        staked_balance: u256
+    ) {
+        _update_rewards(account, staked_balance);
     }
 
     #[storage(read, write)]
     fn claim(
         account: Account,
-        receiver: Account
+        receiver: Account,
+        // staked balance of the account
+        staked_balance: u256
     ) -> u256 {
         require(
             get_contract_or_revert() == storage.yield_asset.read(),
             Error::YieldTrackerForbidden
         );
 
-        _update_rewards(account);
+        _update_rewards(account, staked_balance);
 
         let asset_amount = storage.claimable_reward.get(account).try_read().unwrap_or(0);
         storage.claimable_reward.insert(account, 0);
@@ -174,7 +185,11 @@ fn _only_gov() {
 }
 
 #[storage(read, write)]
-fn _update_rewards(account: Account) {
+fn _update_rewards(
+    account: Account,
+    // staked balance of the account
+    staked_balance: u256
+) {
     let yield_asset = abi(YieldAsset, storage.yield_asset.read().into());
     let mut block_reward: u256 = 0;
 
@@ -202,7 +217,6 @@ fn _update_rewards(account: Account) {
     }
 
     if account != ZERO_ACCOUNT {
-        let staked_balance = yield_asset.staked_balance_of(account).as_u256();
         let previous_cumulated_reward = storage.previous_cumulated_reward_per_asset.get(account).try_read().unwrap_or(0);
 
         let claimable_reward: u256 = storage.claimable_reward.get(account).try_read().unwrap_or(0) +

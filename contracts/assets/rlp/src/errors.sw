@@ -8,8 +8,6 @@ pub enum Error {
 
     RLPMintToZeroAccount: (),
     RLPBurnFromZeroAccount: (),
-    RLPTransferFromZeroAccount: (),
-    RLPTransferToZeroAccount: (),
     RLPApproveFromZeroAccount: (),
     RLPApproveToZeroAccount: (),
 
@@ -17,8 +15,5 @@ pub enum Error {
     RLPInvalidBurnAmountForwarded: (),
 
     RLPInsufficientAllowance: (),
-    RLPInsufficientBalance: (),
     RLPBurnAmountExceedsBalance: (),
-
-    RLPInsufficientTransferAmountForwarded: ()
 }

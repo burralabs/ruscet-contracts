@@ -37,7 +37,11 @@ abi YieldTracker {
     fn get_assets_per_interval() -> u64;
 
     #[storage(read)]
-    fn claimable(account: Account) -> u256;
+    fn claimable(
+        account: Account,
+        // staked balance of the account
+        staked_balance: u256
+    ) -> u256;
 
     /*
           ____  ____        _     _ _      
@@ -47,11 +51,17 @@ abi YieldTracker {
       /_/_/    |_|    \__,_|_.__/|_|_|\___|
     */
     #[storage(read, write)]
-    fn update_rewards(account: Account);
+    fn update_rewards(
+        account: Account,
+        // staked balance of the account
+        staked_balance: u256
+    );
 
     #[storage(read, write)]
     fn claim(
         account: Account,
-        receiver: Account
+        receiver: Account,
+        // staked balance of the account
+        staked_balance: u256
     ) -> u256;
 }

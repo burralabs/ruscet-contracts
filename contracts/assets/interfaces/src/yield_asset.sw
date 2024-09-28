@@ -43,16 +43,33 @@ abi YieldAsset {
     fn set_whitelisted_handler(handler: Account, is_whitelisted: bool);
 
     #[storage(read, write)]
-    fn add_nonstaking_account(account: Account);
+    fn add_nonstaking_account(
+        account: Account,
+        // staked balance of the account
+        staked_balance: u256
+    );
 
     #[storage(read, write)]
-    fn remove_nonstaking_account(account: Account);
+    fn remove_nonstaking_account(
+        account: Account,
+        // staked balance of the account
+        staked_balance: u256
+    );
 
     #[storage(read)]
-    fn recover_claim(account: Account, receiver: Account);
+    fn recover_claim(
+        account: Account,
+        receiver: Account,
+        // staked balance of the account
+        staked_balance: u256
+    );
 
     #[storage(read)]
-    fn claim(receiver: Account);
+    fn claim(
+        receiver: Account,
+        // staked balance of the account
+        staked_balance: u256
+    );
 
     /*
           ____ __     ___               
@@ -73,25 +90,5 @@ abi YieldAsset {
     fn decimals() -> u8;
 
     #[storage(read)]
-    fn balance_of(who: Account) -> u64;
-
-    #[storage(read)]
-    fn staked_balance_of(who: Account) -> u64;
-
-    #[storage(read)]
     fn total_staked() -> u64;
-
-    /*
-          ____  ____        _     _ _      
-         / / / |  _ \ _   _| |__ | (_) ___ 
-        / / /  | |_) | | | | '_ \| | |/ __|
-       / / /   |  __/| |_| | |_) | | | (__ 
-      /_/_/    |_|    \__,_|_.__/|_|_|\___|
-    */
-    #[payable]
-    #[storage(read, write)]
-    fn transfer(
-        to: Account,
-        amount: u64
-    ) -> bool;
 }

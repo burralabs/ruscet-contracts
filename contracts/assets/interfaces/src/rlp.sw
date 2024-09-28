@@ -50,8 +50,8 @@ abi RLP {
     #[storage(read)]
     fn total_supply() -> u64;
 
-    #[storage(read)]
-    fn balance_of(who: Account) -> u64;
+    // #[storage(read)]
+    // fn balance_of(who: Account) -> u64;
 
     /*
           ____  ____        _     _ _      
@@ -60,12 +60,12 @@ abi RLP {
        / / /   |  __/| |_| | |_) | | | (__ 
       /_/_/    |_|    \__,_|_.__/|_|_|\___|
     */
-    #[payable]
-    #[storage(read, write)]
-    fn transfer(
-        to: Account,
-        amount: u64
-    ) -> bool;
+    // #[payable]
+    // #[storage(read, write)]
+    // fn transfer(
+    //     to: Account,
+    //     amount: u64
+    // ) -> bool;
 
     #[storage(read, write)]
     fn mint(account: Account, amount: u64);
