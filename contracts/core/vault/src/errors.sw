@@ -10,9 +10,10 @@ pub enum Error {
     VaultReceiverCannotBeZero: (),
 
     VaultAssetNotWhitelisted: (),
-    VaultInvalidAssetAmount: (),
     VaultInvalidRusdAmount: (),
     VaultInvalidRedemptionAmount: (),
+
+    VaultInvalidAssetForwarded: (),
     VaultZeroAmountOfAssetForwarded: (),
 
     VaultInvalidAmountOut: (),
@@ -38,11 +39,11 @@ pub enum Error {
     VaultInvalidPosition: (),
     VaultInvalidPositionSize: (),
 
+    VaultCollateralAssetNotWhitelisted: (),
+
     VaultLongCollateralIndexAssetsMismatch: (),
-    VaultLongCollateralAssetNotWhitelisted: (),
     VaultLongCollateralAssetMustNotBeStableAsset: (),
 
-    VaultShortCollateralAssetNotWhitelisted: (),
     VaultShortCollateralAssetMustBeStableAsset: (),
     VaultShortIndexAssetMustNotBeStableAsset: (),
     VaultShortIndexAssetNotShortable: (),

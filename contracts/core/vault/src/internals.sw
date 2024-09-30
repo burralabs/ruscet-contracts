@@ -2,6 +2,7 @@
 library;
 
 use std::{
+    call_frames::msg_asset_id,
     context::*,
     primitive_conversions::{
         u8::*,
@@ -66,17 +67,20 @@ pub fn _validate_assets(
 ) {
     let vault_storage = abi(VaultStorage, vault_storage_.into());
 
+    require(
+        vault_storage.is_asset_whitelisted(collateral_asset),
+        Error::VaultCollateralAssetNotWhitelisted
+    );
+
+    let collateral_is_stable = vault_storage.is_stable_asset(collateral_asset);
+
     if is_long {
         require(
             collateral_asset == index_asset,
             Error::VaultLongCollateralIndexAssetsMismatch
         );
         require(
-            vault_storage.is_asset_whitelisted(collateral_asset),
-            Error::VaultLongCollateralAssetNotWhitelisted
-        );
-        require(
-            !vault_storage.is_stable_asset(collateral_asset),
+            !collateral_is_stable,
             Error::VaultLongCollateralAssetMustNotBeStableAsset
         );
 
@@ -84,11 +88,7 @@ pub fn _validate_assets(
     }
 
     require(
-        vault_storage.is_asset_whitelisted(collateral_asset),
-        Error::VaultShortCollateralAssetNotWhitelisted
-    );
-    require(
-        vault_storage.is_stable_asset(collateral_asset),
+        collateral_is_stable,
         Error::VaultShortCollateralAssetMustBeStableAsset
     );
     require(
