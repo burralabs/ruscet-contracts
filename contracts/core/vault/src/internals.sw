@@ -130,10 +130,12 @@ pub fn _validate_buffer_amount(
 }
 
 pub fn _transfer_in(asset_id: AssetId) -> u64 {
-    require(
-        msg_asset_id() == asset_id,
-        Error::VaultInvalidAssetForwarded
-    );
+    if msg_amount() > 0 {
+        require(
+            msg_asset_id() == asset_id,
+            Error::VaultInvalidAssetForwarded
+        );
+    }
     
     msg_amount()
 }
