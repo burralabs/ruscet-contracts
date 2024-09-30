@@ -647,6 +647,7 @@ pub fn _swap(
     vault_utils.update_cumulative_funding_rate(asset_out, asset_out);
 
     let amount_in = _transfer_in(asset_in).as_u256();
+    require(amount_in > 0, Error::VaultInvalidAmountIn);
 
     let price_in = vault_utils.get_min_price(asset_in);
     let price_out = vault_utils.get_max_price(asset_out);
@@ -720,6 +721,7 @@ pub fn _sell_rusd(
     let rusd = vault_storage.get_rusd();
 
     let rusd_amount = _transfer_in(rusd).as_u256();
+    require(rusd_amount > 0, Error::VaultInvalidRusdAmount);
 
     vault_utils.update_cumulative_funding_rate(asset, asset);
 
@@ -747,7 +749,7 @@ pub fn _sell_rusd(
     );
 
     // update asset balance
-    let next_balance = balance_of(ContractId::this(), asset);
+    let _next_balance = balance_of(ContractId::this(), asset);
 
     let fee_basis_points = vault_utils.get_fee_basis_points(
         asset,
@@ -799,6 +801,7 @@ pub fn _buy_rusd(
     );
 
     let asset_amount = _transfer_in(asset);
+    require(asset_amount > 0, Error::VaultInvalidAssetAmount);
 
     vault_utils.update_cumulative_funding_rate(asset, asset);
 
@@ -871,6 +874,7 @@ pub fn _direct_pool_deposit(
     );
 
     let amount = _transfer_in(asset).as_u256();
+    require(amount > 0, Error::VaultInvalidAssetAmount);
 
     vault_utils.increase_pool_amount(asset, amount);
 

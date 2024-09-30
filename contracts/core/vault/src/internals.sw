@@ -134,11 +134,6 @@ pub fn _transfer_in(asset_id: AssetId) -> u64 {
         msg_asset_id() == asset_id,
         Error::VaultInvalidAssetForwarded
     );
-
-    require(
-        msg_amount() > 0,
-        Error::VaultZeroAmountOfAssetForwarded
-    );
     
     msg_amount()
 }

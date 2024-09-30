@@ -10,11 +10,11 @@ pub enum Error {
     VaultReceiverCannotBeZero: (),
 
     VaultAssetNotWhitelisted: (),
+    VaultInvalidAssetAmount: (),
     VaultInvalidRusdAmount: (),
     VaultInvalidRedemptionAmount: (),
 
     VaultInvalidAssetForwarded: (),
-    VaultZeroAmountOfAssetForwarded: (),
 
     VaultInvalidAmountOut: (),
 
