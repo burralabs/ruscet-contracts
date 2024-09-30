@@ -461,7 +461,9 @@ fn _get_primary_price(
 
     let mut i = 0;
     let mut p: u256 = 0;
-    while i < storage.price_sample_space.read() {
+    let len = storage.price_sample_space.read();
+
+    while i < len {
         if latest_round_id <= i {
             break;
         }

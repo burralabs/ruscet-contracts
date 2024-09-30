@@ -161,7 +161,9 @@ impl YieldAsset for Contract {
     fn recover_claim(account: Account, receiver: Account) {
         _only_admin();
         let mut i = 0;
-        while i < storage.yield_trackers.len() {
+        let len = storage.yield_trackers.len();
+
+        while i < len {
             let yield_tracker = storage.yield_trackers.get(i).unwrap().read();
             abi(YieldTracker, yield_tracker.into()).claim(account, receiver);
             i += 1;
@@ -172,7 +174,9 @@ impl YieldAsset for Contract {
     fn claim(receiver: Account) {
         _only_admin();
         let mut i = 0;
-        while i < storage.yield_trackers.len() {
+        let len = storage.yield_trackers.len();
+
+        while i < len {
             let yield_tracker = storage.yield_trackers.get(i).unwrap().read();
             abi(YieldTracker, yield_tracker.into()).claim(get_sender(), receiver);
             i += 1;
@@ -339,7 +343,9 @@ fn _transfer(
 #[storage(read)]
 fn _update_rewards(account: Account) {
     let mut i = 0;
-    while i < storage.yield_trackers.len() {
+    let len = storage.yield_trackers.len();
+
+    while i < len {
         let yield_tracker = storage.yield_trackers.get(i).unwrap().read();
         abi(YieldTracker, yield_tracker.into()).update_rewards(account);
         i += 1;
