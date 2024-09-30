@@ -131,7 +131,7 @@ pub fn _increase_position(
     // we need to have a storage write here because _validate_liquidation re-constructs the position key and 
     // validates the average_price. If not for this position write, it would receive a stale avg price (could be 0)
     vault_storage.write_position(position_key, position);
-    vault_utils.validate_liquidation(
+    let (_liquidation_state, _margin_fees) = vault_utils.validate_liquidation(
         account,
         collateral_asset,
         index_asset,
@@ -273,7 +273,7 @@ pub fn _decrease_position(
         // we need to have a storage write here because _validate_liquidation re-constructs the position key and 
         // validates the max_leverage. If not for this position write, it would receive an incorrect max_leverage error
         vault_storage.write_position(position_key, position);
-        vault_utils.validate_liquidation(
+        let (_liquidation_state, _margin_fees) = vault_utils.validate_liquidation(
             account,
             collateral_asset,
             index_asset,
@@ -539,7 +539,7 @@ pub fn _liquidate_position(
     if liquidation_state == 2 {
         // max leverage exceeded but there is collateral remaining after deducting losses 
         // so decreasePosition instead
-        _decrease_position(
+        let _amount_after_fees = _decrease_position(
             account,
             collateral_asset,
             index_asset,
