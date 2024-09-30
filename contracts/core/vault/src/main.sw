@@ -119,6 +119,7 @@ impl Vault for Contract {
         );
     }
 
+    #[payable]
     fn buy_rusd(asset: AssetId, receiver: Account) -> u256 {
         _buy_rusd(
             asset,
@@ -128,6 +129,7 @@ impl Vault for Contract {
         )
     }
 
+    #[payable]
     fn sell_rusd(asset: AssetId, receiver: Account) -> u256 {
         _sell_rusd(
             asset,

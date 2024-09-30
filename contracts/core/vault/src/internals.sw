@@ -129,35 +129,31 @@ pub fn _validate_buffer_amount(
     }
 }
 
-pub fn _transfer_in(asset_id: AssetId, vault_storage_: ContractId) -> u64 {
-    let vault_storage = abi(VaultStorage, vault_storage_.into());
-    
-    let prev_balance = vault_storage.get_asset_balance(asset_id);
-    let next_balance = balance_of(ContractId::this(), asset_id);
-    vault_storage.write_asset_balance(asset_id, next_balance);
-
+pub fn _transfer_in(asset_id: AssetId) -> u64 {
     require(
-        next_balance >= prev_balance,
-        Error::VaultZeroAmountOfAssetForwarded
+        msg_asset_id() == asset_id,
+        Error::VaultInvalidAssetForwarded
     );
 
-    next_balance - prev_balance
+    let amount = msg_amount();
+    require(
+        amount > 0,
+        Error::VaultZeroAmountOfAssetForwarded
+    );
+    
+    amount
 }
 
 pub fn _transfer_out(
     asset_id: AssetId, 
     amount: u64, 
-    receiver: Account,
-    vault_storage_: ContractId
+    receiver: Account
 ) {
-    let vault_storage = abi(VaultStorage, vault_storage_.into());
-
     transfer_assets(
         asset_id,
         receiver,
         amount
     );
-    vault_storage.write_asset_balance(asset_id, balance_of(ContractId::this(), asset_id));
 }
 
 // for longs:  next_average_price = (next_price * next_size) / (next_size + delta)

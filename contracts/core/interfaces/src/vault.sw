@@ -49,8 +49,10 @@ abi Vault {
     #[payable]
     fn direct_pool_deposit(asset: AssetId);
 
+    #[payable]
     fn buy_rusd(asset: AssetId, receiver: Account) -> u256;
 
+    #[payable]
     fn sell_rusd(asset: AssetId, receiver: Account) -> u256;
 
     #[payable]

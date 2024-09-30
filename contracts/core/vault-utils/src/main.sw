@@ -55,7 +55,7 @@ storage {
     rusd_amounts: StorageMap<AssetId, u256> = StorageMap::<AssetId, u256> {},
 
     // tracks the number of received tokens that can be used for leverage
-    // tracked separately from asset_balances to exclude funds that are deposited 
+    // tracked separately to exclude funds that are deposited 
     // as margin collateral
     pool_amounts: StorageMap<AssetId, u256> = StorageMap::<AssetId, u256> {},
     // tracks the amount of USD that is "guaranteed" by opened leverage positions
