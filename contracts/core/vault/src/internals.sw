@@ -135,13 +135,12 @@ pub fn _transfer_in(asset_id: AssetId) -> u64 {
         Error::VaultInvalidAssetForwarded
     );
 
-    let amount = msg_amount();
     require(
-        amount > 0,
+        msg_amount() > 0,
         Error::VaultZeroAmountOfAssetForwarded
     );
     
-    amount
+    msg_amount()
 }
 
 pub fn _transfer_out(

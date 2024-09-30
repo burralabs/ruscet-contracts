@@ -749,7 +749,6 @@ pub fn _sell_rusd(
     // update asset balance
     let next_balance = balance_of(ContractId::this(), asset);
 
-    // _get_sell_rusd_fee_basis_points
     let fee_basis_points = vault_utils.get_fee_basis_points(
         asset,
         rusd_amount,
@@ -810,7 +809,6 @@ pub fn _buy_rusd(
     rusd_amount = vault_utils.adjust_for_decimals(rusd_amount, asset, rusd);
     require(rusd_amount > 0, Error::VaultInvalidRusdAmount);
 
-    // _get_buy_rusd_fee_basis_points
     let fee_basis_points = vault_utils.get_fee_basis_points(
         asset,
         rusd_amount,
