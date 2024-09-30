@@ -27,6 +27,11 @@ pub struct SetFundingRateInfo {
     pub stable_funding_rate_factor: u64
 }
 
+pub struct SetMaxRusdAmount {
+    pub asset: AssetId,
+    pub max_rusd_amount: u256,
+}
+
 pub struct SetFees {
     pub tax_basis_points: u64,
     pub stable_tax_basis_points: u64,
@@ -42,11 +47,6 @@ pub struct SetFees {
 pub struct WriteAssetBalance {
     pub asset: AssetId,
     pub balance: u64,
-}
-
-pub struct WriteMaxRusdAmount {
-    pub asset: AssetId,
-    pub max_rusd_amount: u256,
 }
 
 pub struct WriteLastFundingTime {

@@ -64,6 +64,9 @@ abi VaultStorage {
     fn set_max_leverage(max_leverage: u64);
 
     #[storage(write)]
+    fn set_max_rusd_amount(asset: AssetId, max_rusd_amount: u256);
+
+    #[storage(write)]
     fn set_pricefeed(pricefeed: ContractId);
 
     #[storage(read, write)]
@@ -237,9 +240,6 @@ abi VaultStorage {
        / / /   |  __/| |_| | |_) | | | (__ 
       /_/_/    |_|    \__,_|_.__/|_|_|\___|
     */
-    #[storage(write)]
-    fn write_max_rusd_amount(asset: AssetId, max_rusd_amount: u256);
-
     #[storage(write)]
     fn write_asset_balance(asset: AssetId, bal: u64);
 
