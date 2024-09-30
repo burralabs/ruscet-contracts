@@ -353,10 +353,10 @@ fn _burn(
 
     _update_rewards(account);
 
-    let account_balance = storage.balances.get(account).try_read().unwrap_or(0);
-    require(account_balance >= amount, Error::YieldAssetBurnAmountExceedsBalance);
+    // let account_balance = storage.balances.get(account).try_read().unwrap_or(0);
+    // require(account_balance >= amount, Error::YieldAssetBurnAmountExceedsBalance);
 
-    storage.balances.get(account).write(account_balance - amount);
+    // storage.balances.get(account).write(account_balance - amount);
     storage.total_supply.write(storage.total_supply.read() - amount);
 
     if storage.non_staking_accounts.get(account).try_read().unwrap_or(false) {

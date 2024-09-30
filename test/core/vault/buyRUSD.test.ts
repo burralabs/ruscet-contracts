@@ -150,8 +150,15 @@ describe("Vault.buyRUSD", () => {
         expect(await getValStr(vaultUtils.functions.get_pool_amounts(toAsset(BNB)))).eq("0")
 
         await call(BNB.functions.mint(addrToAccount(user0), 100))
-        await transfer(BNB.connect(user0), contrToAccount(vault), 100)
-        await call(vault.connect(user0).functions.buy_rusd(toAsset(BNB), addrToAccount(user1)).addContracts(attachedContracts))
+        await call(
+            vault
+                .connect(user0)
+                .functions.buy_rusd(toAsset(BNB), addrToAccount(user1))
+                .addContracts(attachedContracts)
+                .callParams({
+                    forward: [100, getAssetId(BNB)],
+                }),
+        )
 
         expect(await getBalance(user0, RUSD)).eq("0")
         expect(await getBalance(user1, RUSD)).eq("29700")
@@ -167,7 +174,6 @@ describe("Vault.buyRUSD", () => {
         await call(vaultStorage.functions.set_asset_config(...getBnbConfig(BNB)))
 
         await call(BNB.functions.mint(addrToAccount(deployer.address), 100))
-        await transfer(BNB, contrToAccount(vault), 100)
 
         expect(await getBalance(deployer, RUSD)).eq("0")
 
@@ -176,7 +182,14 @@ describe("Vault.buyRUSD", () => {
         expect(await getValStr(vaultUtils.functions.get_pool_amounts(toAsset(BNB)))).eq("0")
 
         await call(vaultStorage.functions.set_manager(addrToAccount(user0), true))
-        await call(vault.connect(user0).functions.buy_rusd(toAsset(BNB), addrToAccount(deployer)).addContracts(attachedContracts))
+        await call(
+            vault.functions
+                .buy_rusd(toAsset(BNB), addrToAccount(deployer))
+                .addContracts(attachedContracts)
+                .callParams({
+                    forward: [100, getAssetId(BNB)],
+                }),
+        )
 
         expect(await getBalance(deployer, RUSD)).eq("29700")
         expect(await getValStr(vaultStorage.functions.get_fee_reserves(toAsset(BNB)))).eq("1")
@@ -204,8 +217,15 @@ describe("Vault.buyRUSD", () => {
         expect(await getValStr(vaultUtils.functions.get_rusd_amount(toAsset(BNB)))).eq("0")
         expect(await getValStr(vaultUtils.functions.get_pool_amounts(toAsset(BNB)))).eq("0")
         await call(BNB.functions.mint(addrToAccount(user0), 100))
-        await transfer(BNB.connect(user0), contrToAccount(vault), 100)
-        await call(vault.connect(user0).functions.buy_rusd(toAsset(BNB), addrToAccount(user1)).addContracts(attachedContracts))
+        await call(
+            vault
+                .connect(user0)
+                .functions.buy_rusd(toAsset(BNB), addrToAccount(user1))
+                .addContracts(attachedContracts)
+                .callParams({
+                    forward: [100, getAssetId(BNB)],
+                }),
+        )
         expect(await getBalance(user0, RUSD)).eq("0")
         expect(await getBalance(user1, RUSD)).eq("19800")
 
@@ -231,8 +251,15 @@ describe("Vault.buyRUSD", () => {
         expect(await getValStr(vaultUtils.functions.get_rusd_amount(toAsset(BNB)))).eq("0")
         expect(await getValStr(vaultUtils.functions.get_pool_amounts(toAsset(BNB)))).eq("0")
         await call(BNB.functions.mint(addrToAccount(user0), 10000))
-        await transfer(BNB.connect(user0), contrToAccount(vault), 10000)
-        await call(vault.connect(user0).functions.buy_rusd(toAsset(BNB), addrToAccount(user1)).addContracts(attachedContracts))
+        await call(
+            vault
+                .connect(user0)
+                .functions.buy_rusd(toAsset(BNB), addrToAccount(user1))
+                .addContracts(attachedContracts)
+                .callParams({
+                    forward: [10000, getAssetId(BNB)],
+                }),
+        )
 
         expect(await getBalance(user0, RUSD)).eq("0")
         expect(await getBalance(user1, RUSD)).eq(asStr(9970 * 300))
@@ -268,8 +295,15 @@ describe("Vault.buyRUSD", () => {
         expect(await getValStr(vaultUtils.functions.get_rusd_amount(toAsset(BNB)))).eq("0")
         expect(await getValStr(vaultUtils.functions.get_pool_amounts(toAsset(BNB)))).eq("0")
         await call(DAI.functions.mint(addrToAccount(user0), expandDecimals(10000)))
-        await transfer(DAI.connect(user0), contrToAccount(vault), expandDecimals(10000))
-        await call(vault.connect(user0).functions.buy_rusd(toAsset(DAI), addrToAccount(user1)).addContracts(attachedContracts))
+        await call(
+            vault
+                .connect(user0)
+                .functions.buy_rusd(toAsset(DAI), addrToAccount(user1))
+                .addContracts(attachedContracts)
+                .callParams({
+                    forward: [expandDecimals(10000), getAssetId(DAI)],
+                }),
+        )
 
         expect(await getBalance(user0, RUSD)).eq("0")
         expect(await getBalance(user1, RUSD)).eq(expandDecimals(10000 - 4, 8))
@@ -295,8 +329,15 @@ describe("Vault.buyRUSD", () => {
         expect(await getValStr(vaultUtils.functions.get_pool_amounts(toAsset(BNB)))).eq("0")
 
         await call(BTC.functions.mint(addrToAccount(user0), expandDecimals(1, 8)))
-        await transfer(BTC.connect(user0), contrToAccount(vault), expandDecimals(1))
-        await call(vault.connect(user0).functions.buy_rusd(toAsset(BTC), addrToAccount(user1)).addContracts(attachedContracts))
+        await call(
+            vault
+                .connect(user0)
+                .functions.buy_rusd(toAsset(BTC), addrToAccount(user1))
+                .addContracts(attachedContracts)
+                .callParams({
+                    forward: [expandDecimals(1, 8), getAssetId(BTC)],
+                }),
+        )
 
         expect(await getBalance(user0, RUSD)).eq("0")
         expect(await getValStr(vaultStorage.functions.get_fee_reserves(toAsset(BTC)))).eq("300000")

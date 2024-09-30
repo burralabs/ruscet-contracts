@@ -135,18 +135,29 @@ describe("Vault.withdrawCollateral", function () {
         await call(BTCPricefeed.functions.set_latest_answer(toPrice(41000)))
         await call(BTCPricefeed.functions.set_latest_answer(toPrice(40000)))
 
-        await call(BTC.functions.mint(addrToAccount(user1), expandDecimals(1, 8)))
-        await transfer(BTC.as(user1), contrToAccount(vault), 250000) // 0.0025 BTC => 100 USD
-        await call(vault.functions.buy_rusd(toAsset(BTC), addrToAccount(user1)).addContracts(attachedContracts))
+        await call(BTC.functions.mint(addrToAccount(user1), expandDecimals(1)))
+        await call(
+            vault
+                .as(user1)
+                .functions.buy_rusd(toAsset(BTC), addrToAccount(user1))
+                .addContracts(attachedContracts)
+                .callParams({
+                    // 0.0025 BTC => 100 USD
+                    forward: [250000, getAssetId(BTC)],
+                }),
+        )
 
-        await call(BTC.functions.mint(addrToAccount(user0), expandDecimals(1, 8)))
-        await transfer(BTC.as(user1), contrToAccount(vault), 25000) // 0.00025 BTC => 10 USD
+        await call(BTC.functions.mint(addrToAccount(user0), expandDecimals(1)))
         await expect(
             call(
                 vault
                     .connect(user0)
                     .functions.increase_position(addrToAccount(user0), toAsset(BTC), toAsset(BTC), toUsd(110), true)
-                    .addContracts(attachedContracts),
+                    .addContracts(attachedContracts)
+                    .callParams({
+                        // 0.00025 BTC => 10 USD
+                        forward: [25000, getAssetId(BTC)],
+                    }),
             ),
         ).to.be.revertedWith("VaultReserveExceedsPool")
 
@@ -154,6 +165,10 @@ describe("Vault.withdrawCollateral", function () {
             vault
                 .connect(user0)
                 .functions.increase_position(addrToAccount(user0), toAsset(BTC), toAsset(BTC), toUsd(90), true)
+                .callParams({
+                    // 0.00025 BTC => 10 USD
+                    forward: [25000, getAssetId(BTC)],
+                })
                 .addContracts(attachedContracts),
         )
 
@@ -276,17 +291,28 @@ describe("Vault.withdrawCollateral", function () {
         await call(BTCPricefeed.functions.set_latest_answer(toPrice(41000)))
         await call(BTCPricefeed.functions.set_latest_answer(toPrice(40000)))
 
-        await call(BTC.functions.mint(addrToAccount(user1), expandDecimals(1, 8)))
-        await transfer(BTC.as(user1), contrToAccount(vault), 250000) // 0.0025 BTC => 100 USD
-        await call(vault.functions.buy_rusd(toAsset(BTC), addrToAccount(user1)).addContracts(attachedContracts))
+        await call(BTC.functions.mint(addrToAccount(user1), expandDecimals(1)))
+        await call(
+            vault
+                .as(user1)
+                .functions.buy_rusd(toAsset(BTC), addrToAccount(user1))
+                .addContracts(attachedContracts)
+                .callParams({
+                    // 0.0025 BTC => 100 USD
+                    forward: [250000, getAssetId(BTC)],
+                }),
+        )
 
-        await call(BTC.functions.mint(addrToAccount(user0), expandDecimals(1, 8)))
-        await transfer(BTC.as(user1), contrToAccount(vault), 25000) // 0.00025 BTC => 10 USD
+        await call(BTC.functions.mint(addrToAccount(user0), expandDecimals(1)))
         await expect(
             call(
                 vault
                     .connect(user0)
                     .functions.increase_position(addrToAccount(user0), toAsset(BTC), toAsset(BTC), toUsd(110), true)
+                    .callParams({
+                        // 0.00025 BTC => 10 USD
+                        forward: [25000, getAssetId(BTC)],
+                    })
                     .addContracts(attachedContracts),
             ),
         ).to.be.revertedWith("VaultReserveExceedsPool")
@@ -295,6 +321,10 @@ describe("Vault.withdrawCollateral", function () {
             vault
                 .connect(user0)
                 .functions.increase_position(addrToAccount(user0), toAsset(BTC), toAsset(BTC), toUsd(90), true)
+                .callParams({
+                    // 0.00025 BTC => 10 USD
+                    forward: [25000, getAssetId(BTC)],
+                })
                 .addContracts(attachedContracts),
         )
         await call(BTCPricefeed.functions.set_latest_answer(toPrice(45100)))
@@ -336,11 +366,14 @@ describe("Vault.withdrawCollateral", function () {
                 .addContracts(attachedContracts),
         )
 
-        await transfer(BTC.as(user1), contrToAccount(vault), 25000) // 0.00025 BTC => 10 USD
         await call(
             vault
                 .connect(user0)
                 .functions.increase_position(addrToAccount(user0), toAsset(BTC), toAsset(BTC), toUsd(30), true)
+                .callParams({
+                    // 0.00025 BTC => 10 USD
+                    forward: [25000, getAssetId(BTC)],
+                })
                 .addContracts(attachedContracts),
         )
     })
@@ -355,14 +388,24 @@ describe("Vault.withdrawCollateral", function () {
         await call(BNBPricefeed.functions.set_latest_answer(toPrice(500)))
         await call(BNBPricefeed.functions.set_latest_answer(toPrice(500)))
 
-        await call(BNB.functions.mint(contrToAccount(vault), expandDecimals(10, 8)))
-        await call(vault.functions.buy_rusd(toAsset(BNB), addrToAccount(user1)).addContracts(attachedContracts))
+        await call(BNB.functions.mint(addrToAccount(user0), expandDecimals(100)))
+        await call(
+            vault
+                .as(user0)
+                .functions.buy_rusd(toAsset(BNB), addrToAccount(user1))
+                .addContracts(attachedContracts)
+                .callParams({
+                    forward: [expandDecimals(10), getAssetId(BNB)],
+                }),
+        )
 
-        await call(BNB.functions.mint(contrToAccount(vault), expandDecimals(1, 8)))
         await call(
             vault
                 .connect(user0)
                 .functions.increase_position(addrToAccount(user0), toAsset(BNB), toAsset(BNB), toUsd(2000), true)
+                .callParams({
+                    forward: [expandDecimals(1), getAssetId(BNB)],
+                })
                 .addContracts(attachedContracts),
         )
 
@@ -370,11 +413,13 @@ describe("Vault.withdrawCollateral", function () {
         await call(BNBPricefeed.functions.set_latest_answer(toPrice(750)))
         await call(BNBPricefeed.functions.set_latest_answer(toPrice(750)))
 
-        await call(BNB.functions.mint(contrToAccount(vault), expandDecimals(1, 8)))
         await call(
             vault
                 .connect(user0)
                 .functions.increase_position(addrToAccount(user0), toAsset(BNB), toAsset(BNB), toUsd(0), true)
+                .callParams({
+                    forward: [expandDecimals(1), getAssetId(BNB)],
+                })
                 .addContracts(attachedContracts),
         )
 
@@ -438,14 +483,24 @@ describe("Vault.withdrawCollateral", function () {
         await call(BNBPricefeed.functions.set_latest_answer(toPrice(500)))
         await call(BNBPricefeed.functions.set_latest_answer(toPrice(500)))
 
-        await call(DAI.functions.mint(contrToAccount(vault), expandDecimals(8000, 8)))
-        await call(vault.functions.buy_rusd(toAsset(DAI), addrToAccount(user1)).addContracts(attachedContracts))
+        await call(DAI.functions.mint(addrToAccount(user0), expandDecimals(8000 + 500 + 500)))
+        await call(
+            vault
+                .as(user0)
+                .functions.buy_rusd(toAsset(DAI), addrToAccount(user1))
+                .addContracts(attachedContracts)
+                .callParams({
+                    forward: [expandDecimals(8000), getAssetId(DAI)],
+                }),
+        )
 
-        await call(DAI.functions.mint(contrToAccount(vault), expandDecimals(500, 8)))
         await call(
             vault
                 .connect(user0)
                 .functions.increase_position(addrToAccount(user0), toAsset(DAI), toAsset(BNB), toUsd(2000), false)
+                .callParams({
+                    forward: [expandDecimals(500), getAssetId(DAI)],
+                })
                 .addContracts(attachedContracts),
         )
 
@@ -453,11 +508,13 @@ describe("Vault.withdrawCollateral", function () {
         await call(BNBPricefeed.functions.set_latest_answer(toPrice(525)))
         await call(BNBPricefeed.functions.set_latest_answer(toPrice(525)))
 
-        await call(DAI.functions.mint(contrToAccount(vault), expandDecimals(500, 8)))
         await call(
             vault
                 .connect(user0)
                 .functions.increase_position(addrToAccount(user0), toAsset(DAI), toAsset(BNB), toUsd(0), false)
+                .callParams({
+                    forward: [expandDecimals(500), getAssetId(DAI)],
+                })
                 .addContracts(attachedContracts),
         )
 

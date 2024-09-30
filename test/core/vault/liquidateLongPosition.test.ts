@@ -148,19 +148,31 @@ describe("Vault.liquidateLongPosition", () => {
             ),
         ).to.be.revertedWith("VaultEmptyPosition")
 
-        await call(BTC.functions.mint(addrToAccount(user1), expandDecimals(1, 8)))
-        await transfer(BTC.as(user1), contrToAccount(vault), 250000) // 0.0025 BTC => 100 USD
+        await call(BTC.functions.mint(addrToAccount(user0), expandDecimals(1)))
+        await call(BTC.functions.mint(addrToAccount(user1), expandDecimals(1)))
 
-        await call(vault.functions.buy_rusd(toAsset(BTC), addrToAccount(user1)).addContracts(attachedContracts))
+        await call(
+            vault
+                .as(user1)
+                .functions.buy_rusd(toAsset(BTC), addrToAccount(user1))
+                .addContracts(attachedContracts)
+                .callParams({
+                    // 0.0025 BTC => 100 USD
+                    forward: [250000, getAssetId(BTC)],
+                }),
+        )
 
-        await call(BTC.functions.mint(addrToAccount(user0), expandDecimals(1, 8)))
-        await transfer(BTC.as(user1), contrToAccount(vault), 25000) // 0.00025 BTC => 10 USD
+        await call(BTC.functions.mint(addrToAccount(user0), expandDecimals(1)))
 
         await call(
             vault
                 .connect(user0)
                 .functions.increase_position(addrToAccount(user0), toAsset(BTC), toAsset(BTC), toUsd(90), true)
-                .addContracts(attachedContracts),
+                .addContracts(attachedContracts)
+                .callParams({
+                    // 0.00025 BTC => 10 USD
+                    forward: [25000, getAssetId(BTC)],
+                }),
         )
 
         let position = formatObj(
@@ -295,8 +307,16 @@ describe("Vault.liquidateLongPosition", () => {
 
         await call(vault.functions.withdraw_fees(toAsset(BTC), addrToAccount(user0)).addContracts(attachedContracts))
 
-        await call(BTC.functions.mint(contrToAccount(vault), 1000))
-        await call(vault.functions.buy_rusd(toAsset(BTC), addrToAccount(user1)).addContracts(attachedContracts))
+        // await call(BTC.functions.mint(contrToAccount(vault), 1000))
+        await call(
+            vault
+                .as(user0)
+                .functions.buy_rusd(toAsset(BTC), addrToAccount(user1))
+                .addContracts(attachedContracts)
+                .callParams({
+                    forward: [1000, getAssetId(BTC)],
+                }),
+        )
     })
 
     it("automatic stop-loss", async () => {
@@ -319,16 +339,28 @@ describe("Vault.liquidateLongPosition", () => {
             ),
         ).to.be.revertedWith("VaultEmptyPosition")
 
-        await call(BTC.functions.mint(addrToAccount(user1), expandDecimals(1, 8)))
-        await transfer(BTC.as(user1), contrToAccount(vault), 5000000) // 0.05 BTC => 2000 USD
-        await call(vault.functions.buy_rusd(toAsset(BTC), addrToAccount(user1)).addContracts(attachedContracts))
+        await call(BTC.functions.mint(addrToAccount(user1), expandDecimals(1)))
+        await call(
+            vault
+                .as(user1)
+                .functions.buy_rusd(toAsset(BTC), addrToAccount(user1))
+                .addContracts(attachedContracts)
+                .callParams({
+                    // 0.05 BTC => 2000 USD
+                    forward: [5000000, getAssetId(BTC)],
+                }),
+        )
 
-        await call(BTC.functions.mint(addrToAccount(user1), expandDecimals(1, 8)))
-        await transfer(BTC.as(user1), contrToAccount(vault), 250000) // 0.0025 BTC => 100 USD
+        await call(BTC.functions.mint(addrToAccount(user1), expandDecimals(1)))
+        await transfer(BTC.as(user1), addrToAccount(user0), 250000) // 0.0025 BTC => 100 USD
         await call(
             vault
                 .connect(user0)
                 .functions.increase_position(addrToAccount(user0), toAsset(BTC), toAsset(BTC), toUsd(1000), true)
+                .callParams({
+                    // 0.0025 BTC => 100 USD
+                    forward: [250000, getAssetId(BTC)],
+                })
                 .addContracts(attachedContracts),
         )
 
@@ -459,7 +491,15 @@ describe("Vault.liquidateLongPosition", () => {
 
         await call(vault.functions.withdraw_fees(toAsset(BTC), addrToAccount(user0)).addContracts(attachedContracts))
 
-        await call(BTC.functions.mint(contrToAccount(vault), 1000))
-        await call(vault.functions.buy_rusd(toAsset(BTC), addrToAccount(user1)).addContracts(attachedContracts))
+        // await call(BTC.functions.mint(contrToAccount(vault), 1000))
+        await call(
+            vault
+                .as(user0)
+                .functions.buy_rusd(toAsset(BTC), addrToAccount(user1))
+                .addContracts(attachedContracts)
+                .callParams({
+                    forward: [1000, getAssetId(BTC)],
+                }),
+        )
     })
 })

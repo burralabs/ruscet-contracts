@@ -130,7 +130,6 @@ describe("Vault.withdrawFees", function () {
         await call(vaultStorage.functions.set_asset_config(...getBtcConfig(BTC)))
 
         await call(BNB.functions.mint(addrToAccount(user0), expandDecimals(900)))
-        await transfer(BNB.as(user0), contrToAccount(vault), expandDecimals(900))
 
         expect(await getBalance(deployer, RUSD)).eq("0")
         expect(await getBalance(user1, RUSD)).eq("0")
@@ -138,7 +137,15 @@ describe("Vault.withdrawFees", function () {
         expect(await getValStr(vaultUtils.functions.get_rusd_amount(toAsset(BNB)))).eq("0")
         expect(await getValStr(vaultUtils.functions.get_pool_amounts(toAsset(BNB)))).eq("0")
 
-        await call(vault.connect(user0).functions.buy_rusd(toAsset(BNB), addrToAccount(user1)).addContracts(attachedContracts))
+        await call(
+            vault
+                .connect(user0)
+                .functions.buy_rusd(toAsset(BNB), addrToAccount(user1))
+                .addContracts(attachedContracts)
+                .callParams({
+                    forward: [expandDecimals(900), getAssetId(BNB)],
+                }),
+        )
 
         expect(await getBalance(deployer, RUSD)).eq("0")
         expect(await getBalance(user1, RUSD)).eq("26919000000000") // 269,190 RUSD, 810 fee
@@ -148,26 +155,48 @@ describe("Vault.withdrawFees", function () {
         expect(await getValStr(rusd.functions.total_supply())).eq("26919000000000")
 
         await call(BNB.functions.mint(addrToAccount(user0), expandDecimals(200)))
-        await transfer(BNB.as(user0), contrToAccount(vault), expandDecimals(200))
 
-        await call(BTC.functions.mint(addrToAccount(user0), expandDecimals(2, 8)))
-        await transfer(BTC.as(user0), contrToAccount(vault), expandDecimals(2, 8))
+        await call(BTC.functions.mint(addrToAccount(user0), expandDecimals(2)))
 
-        await call(vault.connect(user0).functions.buy_rusd(toAsset(BTC), addrToAccount(user1)).addContracts(attachedContracts))
+        await call(
+            vault
+                .as(user0)
+                .functions.buy_rusd(toAsset(BTC), addrToAccount(user1))
+                .addContracts(attachedContracts)
+                .callParams({
+                    forward: [expandDecimals(2), getAssetId(BTC)],
+                }),
+        )
+
         expect(await getValStr(vaultUtils.functions.get_rusd_amount(toAsset(BTC)))).eq("11964000000000") // 119,640
         expect(await getValStr(rusd.functions.total_supply())).eq("38883000000000") // 388,830
 
-        await call(BTC.functions.mint(addrToAccount(user0), expandDecimals(2, 8)))
-        await transfer(BTC.as(user0), contrToAccount(vault), expandDecimals(2, 8))
+        await call(BTC.functions.mint(addrToAccount(user0), expandDecimals(2)))
 
-        await call(vault.connect(user0).functions.buy_rusd(toAsset(BTC), addrToAccount(user1)).addContracts(attachedContracts))
+        await call(
+            vault
+                .connect(user0)
+                .functions.buy_rusd(toAsset(BTC), addrToAccount(user1))
+                .addContracts(attachedContracts)
+                .callParams({
+                    forward: [expandDecimals(2), getAssetId(BTC)],
+                }),
+        )
         expect(await getValStr(vaultUtils.functions.get_rusd_amount(toAsset(BTC)))).eq("23928000000000") // 239,280
         expect(await getValStr(rusd.functions.total_supply())).eq("50847000000000") // 508,470
 
         expect(await getValStr(vaultUtils.functions.get_rusd_amount(toAsset(BNB)))).eq("26919000000000") // 269,190
         expect(await getValStr(vaultUtils.functions.get_pool_amounts(toAsset(BNB)))).eq("89730000000") // 897.3
 
-        await call(vault.connect(user0).functions.buy_rusd(toAsset(BNB), addrToAccount(user1)).addContracts(attachedContracts))
+        await call(
+            vault
+                .connect(user0)
+                .functions.buy_rusd(toAsset(BNB), addrToAccount(user1))
+                .addContracts(attachedContracts)
+                .callParams({
+                    forward: [expandDecimals(200), getAssetId(BNB)],
+                }),
+        )
 
         expect(await getValStr(vaultUtils.functions.get_rusd_amount(toAsset(BNB)))).eq("32901000000000") // 329,010
         expect(await getValStr(vaultUtils.functions.get_pool_amounts(toAsset(BNB)))).eq("109670000000") // 1096.7

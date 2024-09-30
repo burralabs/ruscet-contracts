@@ -144,8 +144,16 @@ describe("Vault.getFeeBasisPoints", function () {
         await call(vaultStorage.functions.set_asset_config(...getBnbConfig(BNB)))
         expect(await getValStr(vaultUtils.functions.get_target_rusd_amount(toAsset(BNB)))).eq("0")
 
-        await call(BNB.functions.mint(contrToAccount(vault), 100))
-        await call(vault.connect(user0).functions.buy_rusd(toAsset(BNB), addrToAccount(deployer)).addContracts(attachedContracts))
+        await call(BNB.functions.mint(addrToAccount(user0), 100))
+        await call(
+            vault
+                .connect(user0)
+                .functions.buy_rusd(toAsset(BNB), addrToAccount(deployer))
+                .addContracts(attachedContracts)
+                .callParams({
+                    forward: [100, getAssetId(BNB)],
+                }),
+        )
 
         expect(await getValStr(vaultUtils.functions.get_rusd_amount(toAsset(BNB)))).eq("29700")
         expect(await getValStr(vaultUtils.functions.get_target_rusd_amount(toAsset(BNB)))).eq("29700")
@@ -180,8 +188,16 @@ describe("Vault.getFeeBasisPoints", function () {
         expect(await getValStr(vaultUtils.functions.get_fee_basis_points(toAsset(BNB), 25000, 100, 50, false))).eq("50")
         expect(await getValStr(vaultUtils.functions.get_fee_basis_points(toAsset(BNB), 100000, 100, 50, false))).eq("150")
 
-        await call(DAI.functions.mint(contrToAccount(vault), 20000))
-        await call(vault.connect(user0).functions.buy_rusd(toAsset(DAI), addrToAccount(deployer)).addContracts(attachedContracts))
+        await call(DAI.functions.mint(addrToAccount(user0), 20000))
+        await call(
+            vault
+                .connect(user0)
+                .functions.buy_rusd(toAsset(DAI), addrToAccount(deployer))
+                .addContracts(attachedContracts)
+                .callParams({
+                    forward: [20000, getAssetId(DAI)],
+                }),
+        )
 
         expect(await getValStr(vaultUtils.functions.get_target_rusd_amount(toAsset(BNB)))).eq("24850")
         expect(await getValStr(vaultUtils.functions.get_target_rusd_amount(toAsset(DAI)))).eq("24850")
@@ -207,8 +223,16 @@ describe("Vault.getFeeBasisPoints", function () {
         bnbConfig[2] = 5000
         await call(vaultStorage.functions.set_asset_config(...bnbConfig))
 
-        await call(BNB.functions.mint(contrToAccount(vault), 200))
-        await call(vault.connect(user0).functions.buy_rusd(toAsset(BNB), addrToAccount(deployer)).addContracts(attachedContracts))
+        await call(BNB.functions.mint(addrToAccount(user0), 200))
+        await call(
+            vault
+                .connect(user0)
+                .functions.buy_rusd(toAsset(BNB), addrToAccount(deployer))
+                .addContracts(attachedContracts)
+                .callParams({
+                    forward: [200, getAssetId(BNB)],
+                }),
+        )
 
         expect(await getValStr(vaultUtils.functions.get_rusd_amount(toAsset(BNB)))).eq("89100")
         expect(await getValStr(vaultUtils.functions.get_target_rusd_amount(toAsset(BNB)))).eq("36366")

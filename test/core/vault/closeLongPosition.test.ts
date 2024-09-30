@@ -138,17 +138,26 @@ describe("Vault.closeLongPosition", () => {
         await call(BTCPricefeed.functions.set_latest_answer(toPrice(40000)))
 
         await call(BTC.functions.mint(addrToAccount(user1), expandDecimals(1)))
-        await transfer(BTC.as(user1), contrToAccount(vault), 250000) // 0.0025 BTC => 100 USD
-        await call(vault.functions.buy_rusd(toAsset(BTC), addrToAccount(user1)).addContracts(attachedContracts))
+        await call(
+            vault
+                .as(user1)
+                .functions.buy_rusd(toAsset(BTC), addrToAccount(user1))
+                .addContracts(attachedContracts)
+                .callParams({
+                    forward: [250000, getAssetId(BTC)],
+                }),
+        )
 
         await call(BTC.functions.mint(addrToAccount(user0), expandDecimals(1)))
-        await transfer(BTC.as(user1), contrToAccount(vault), 25000) // 0.00025 BTC => 10 USD
 
         await expect(
             vault
                 .connect(user0)
                 .functions.increase_position(addrToAccount(user0), toAsset(BTC), toAsset(BTC), toUsd(110), true)
                 .addContracts(attachedContracts)
+                .callParams({
+                    forward: [25000, getAssetId(BTC)],
+                })
                 .call(),
         ).to.be.revertedWith("VaultReserveExceedsPool")
 
@@ -156,7 +165,10 @@ describe("Vault.closeLongPosition", () => {
             vault
                 .connect(user0)
                 .functions.increase_position(addrToAccount(user0), toAsset(BTC), toAsset(BTC), toUsd(90), true)
-                .addContracts(attachedContracts),
+                .addContracts(attachedContracts)
+                .callParams({
+                    forward: [25000, getAssetId(BTC)],
+                }),
         )
 
         let position = formatObj(
@@ -230,16 +242,25 @@ describe("Vault.closeLongPosition", () => {
         await call(BTCPricefeed.functions.set_latest_answer(toPrice(40000)))
 
         await call(BTC.functions.mint(addrToAccount(user1), expandDecimals(1)))
-        await transfer(BTC.as(user1), contrToAccount(vault), 250000) // 0.0025 BTC => 100 USD
-        await call(vault.functions.buy_rusd(toAsset(BTC), addrToAccount(user1)).addContracts(attachedContracts))
+        await call(
+            vault
+                .as(user1)
+                .functions.buy_rusd(toAsset(BTC), addrToAccount(user1))
+                .addContracts(attachedContracts)
+                .callParams({
+                    forward: [250000, getAssetId(BTC)],
+                }),
+        )
 
         await call(BTC.functions.mint(addrToAccount(user0), expandDecimals(1)))
-        await transfer(BTC.as(user1), contrToAccount(vault), 25000) // 0.00025 BTC => 10 USD
         await expect(
             vault
                 .connect(user0)
                 .functions.increase_position(addrToAccount(user0), toAsset(BTC), toAsset(BTC), toUsd(110), true)
                 .addContracts(attachedContracts)
+                .callParams({
+                    forward: [25000, getAssetId(BTC)],
+                })
                 .call(),
         ).to.be.revertedWith("VaultReserveExceedsPool")
 
@@ -247,7 +268,10 @@ describe("Vault.closeLongPosition", () => {
             vault
                 .connect(user0)
                 .functions.increase_position(addrToAccount(user0), toAsset(BTC), toAsset(BTC), toUsd(90), true)
-                .addContracts(attachedContracts),
+                .addContracts(attachedContracts)
+                .callParams({
+                    forward: [25000, getAssetId(BTC)],
+                }),
         )
 
         let position = formatObj(
