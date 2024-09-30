@@ -156,7 +156,7 @@ describe("Vault.averagePrice", () => {
             await call(BTCPricefeed.functions.set_latest_answer(toPrice(41000)))
             await call(BTCPricefeed.functions.set_latest_answer(toPrice(40000)))
 
-            await call(BTC.functions.mint(addrToAccount(user1), expandDecimals(1, 8)))
+            await call(BTC.functions.mint(addrToAccount(user1), expandDecimals(1)))
             await call(
                 vault
                     .as(user1)
@@ -168,7 +168,7 @@ describe("Vault.averagePrice", () => {
                     }),
             )
 
-            await call(BTC.functions.mint(addrToAccount(user0), expandDecimals(1, 8)))
+            await call(BTC.functions.mint(addrToAccount(user0), expandDecimals(1)))
             await expect(
                 call(
                     vault
@@ -286,7 +286,7 @@ describe("Vault.averagePrice", () => {
             await call(BTCPricefeed.functions.set_latest_answer(toPrice(40000)))
             await call(BTCPricefeed.functions.set_latest_answer(toPrice(40000)))
 
-            await call(BTC.functions.mint(addrToAccount(user1), expandDecimals(1, 8)))
+            await call(BTC.functions.mint(addrToAccount(user1), expandDecimals(1)))
             // await transfer(BTC.as(user1), contrToAccount(vault), 250000) // 0.0025 BTC => 100 USD
             await call(
                 vault
@@ -298,7 +298,7 @@ describe("Vault.averagePrice", () => {
                     }),
             )
 
-            await call(BTC.functions.mint(addrToAccount(user1), expandDecimals(1, 8)))
+            await call(BTC.functions.mint(addrToAccount(user1), expandDecimals(1)))
             await call(BTC.functions.mint(addrToAccount(user0), 25000))
             // await transfer(BTC.as(user1), contrToAccount(vault), 25000) // 0.00025 BTC => 10 USD
             await call(
@@ -370,7 +370,7 @@ describe("Vault.averagePrice", () => {
             await call(BTCPricefeed.functions.set_latest_answer(toPrice(40000)))
             await call(BTCPricefeed.functions.set_latest_answer(toPrice(40000)))
 
-            await call(BTC.functions.mint(addrToAccount(user1), expandDecimals(1, 8)))
+            await call(BTC.functions.mint(addrToAccount(user1), expandDecimals(1)))
             // await transfer(BTC.as(user1), contrToAccount(vault), 250000) // 0.0025 BTC => 100 USD
             await call(
                 vault
@@ -383,7 +383,7 @@ describe("Vault.averagePrice", () => {
                     }),
             )
 
-            await call(BTC.functions.mint(addrToAccount(user0), expandDecimals(1, 8)))
+            await call(BTC.functions.mint(addrToAccount(user0), expandDecimals(1)))
             // await transfer(BTC.as(user1), contrToAccount(vault), 25000) // 0.00025 BTC => 10 USD
             await call(
                 vault
@@ -449,7 +449,7 @@ describe("Vault.averagePrice", () => {
 
             await call(BTCPricefeed.functions.set_latest_answer(toPrice(40000)))
             await call(BTCPricefeed.functions.set_latest_answer(toPrice(40000)))
-            await call(BTC.functions.mint(addrToAccount(user1), expandDecimals(1, 8)))
+            await call(BTC.functions.mint(addrToAccount(user1), expandDecimals(1)))
 
             // await transfer(BTC.as(user1), contrToAccount(vault), 250000)
             await call(
@@ -463,7 +463,7 @@ describe("Vault.averagePrice", () => {
                     }),
             )
 
-            await call(BTC.functions.mint(addrToAccount(user0), expandDecimals(1, 8)))
+            await call(BTC.functions.mint(addrToAccount(user0), expandDecimals(1)))
             // await transfer(BTC.as(user1), contrToAccount(vault), 125000) // 0.000125 BTC => 50 USD
             await call(
                 vault
@@ -529,7 +529,7 @@ describe("Vault.averagePrice", () => {
             await call(BTCPricefeed.functions.set_latest_answer(toPrice(40000)))
             await call(BTCPricefeed.functions.set_latest_answer(toPrice(40000)))
 
-            await call(BTC.functions.mint(addrToAccount(user1), expandDecimals(1, 8)))
+            await call(BTC.functions.mint(addrToAccount(user1), expandDecimals(1)))
             // await transfer(BTC.as(user1), contrToAccount(vault), 250000) // 0.0025 BTC => 100 USD
             await call(
                 vault
@@ -542,7 +542,7 @@ describe("Vault.averagePrice", () => {
                     }),
             )
 
-            await call(BTC.functions.mint(addrToAccount(user0), expandDecimals(1, 8)))
+            await call(BTC.functions.mint(addrToAccount(user0), expandDecimals(1)))
             // await transfer(BTC.as(user1), contrToAccount(vault), 125000) // 0.000125 BTC => 50 USD
             await call(
                 vault
@@ -618,27 +618,27 @@ describe("Vault.averagePrice", () => {
             await call(BTCPricefeed.functions.set_latest_answer(toPrice(40000)))
             await call(BTCPricefeed.functions.set_latest_answer(toPrice(40000)))
 
-            await call(DAI.functions.mint(addrToAccount(user1), expandDecimals(101, 8)))
-            // await transfer(DAI.as(user1), contrToAccount(vault), expandDecimals(101, 8))
+            await call(DAI.functions.mint(addrToAccount(user1), expandDecimals(101)))
+            // await transfer(DAI.as(user1), contrToAccount(vault), expandDecimals(101))
             await call(
                 vault
                     .as(user1)
                     .functions.buy_rusd(toAsset(DAI), addrToAccount(user1))
                     .addContracts(attachedContracts)
                     .callParams({
-                        forward: [expandDecimals(101, 8), getAssetId(DAI)],
+                        forward: [expandDecimals(101), getAssetId(DAI)],
                     }),
             )
 
-            await call(DAI.functions.mint(addrToAccount(user0), expandDecimals(50, 8)))
-            // await transfer(DAI.as(user0), contrToAccount(vault), expandDecimals(50, 8))
+            await call(DAI.functions.mint(addrToAccount(user0), expandDecimals(50)))
+            // await transfer(DAI.as(user0), contrToAccount(vault), expandDecimals(50))
             await call(
                 vault
                     .connect(user0)
                     .functions.increase_position(addrToAccount(user0), toAsset(DAI), toAsset(BTC), toUsd(90), false)
                     .addContracts(attachedContracts)
                     .callParams({
-                        forward: [expandDecimals(50, 8), getAssetId(DAI)],
+                        forward: [expandDecimals(50), getAssetId(DAI)],
                     }),
             )
 
@@ -649,7 +649,7 @@ describe("Vault.averagePrice", () => {
             expect(position[1]).eq("49910000000000000000000000000000") // collateral, 50 - 90 * 0.1%
             expect(position[2]).eq(toNormalizedPrice(40000)) // averagePrice
             expect(position[3]).eq("0") // entryFundingRate
-            expect(position[4]).eq(expandDecimals(90, 8))
+            expect(position[4]).eq(expandDecimals(90))
 
             await call(BTCPricefeed.functions.set_latest_answer(toPrice(40000)))
             await call(BTCPricefeed.functions.set_latest_answer(toPrice(40000)))
@@ -675,7 +675,7 @@ describe("Vault.averagePrice", () => {
             expect(position[1]).eq("49900000000000000000000000000000") // collateral
             expect(position[2]).eq(toNormalizedPrice(40000)) // averagePrice
             expect(position[3]).eq("0") // entryFundingRate
-            expect(position[4]).eq(expandDecimals(100, 8)) // reserveAmount
+            expect(position[4]).eq(expandDecimals(100)) // reserveAmount
 
             delta = formatObj(
                 await getValue(vaultUtils.functions.get_position_delta(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false)),
@@ -694,27 +694,27 @@ describe("Vault.averagePrice", () => {
             await call(BTCPricefeed.functions.set_latest_answer(toPrice(40000)))
             await call(BTCPricefeed.functions.set_latest_answer(toPrice(40000)))
 
-            await call(DAI.functions.mint(addrToAccount(user1), expandDecimals(101, 8)))
-            // await transfer(DAI.as(user1), contrToAccount(vault), expandDecimals(101, 8))
+            await call(DAI.functions.mint(addrToAccount(user1), expandDecimals(101)))
+            // await transfer(DAI.as(user1), contrToAccount(vault), expandDecimals(101))
             await call(
                 vault
                     .as(user1)
                     .functions.buy_rusd(toAsset(DAI), addrToAccount(user1))
                     .addContracts(attachedContracts)
                     .callParams({
-                        forward: [expandDecimals(101, 8), getAssetId(DAI)],
+                        forward: [expandDecimals(101), getAssetId(DAI)],
                     }),
             )
 
-            await call(DAI.functions.mint(addrToAccount(user0), expandDecimals(50, 8)))
-            // await transfer(DAI.as(user0), contrToAccount(vault), expandDecimals(50, 8))
+            await call(DAI.functions.mint(addrToAccount(user0), expandDecimals(50)))
+            // await transfer(DAI.as(user0), contrToAccount(vault), expandDecimals(50))
             await call(
                 vault
                     .connect(user0)
                     .functions.increase_position(addrToAccount(user0), toAsset(DAI), toAsset(BTC), toUsd(90), false)
                     .addContracts(attachedContracts)
                     .callParams({
-                        forward: [expandDecimals(50, 8), getAssetId(DAI)],
+                        forward: [expandDecimals(50), getAssetId(DAI)],
                     }),
             )
 
@@ -725,7 +725,7 @@ describe("Vault.averagePrice", () => {
             expect(position[1]).eq("49910000000000000000000000000000") // collateral, 50 - 90 * 0.1%
             expect(position[2]).eq(toNormalizedPrice(40000)) // averagePrice
             expect(position[3]).eq("0") // entryFundingRate
-            expect(position[4]).eq(expandDecimals(90, 8))
+            expect(position[4]).eq(expandDecimals(90))
 
             await call(BTCPricefeed.functions.set_latest_answer(toPrice(50000)))
             await call(BTCPricefeed.functions.set_latest_answer(toPrice(50000)))
@@ -751,7 +751,7 @@ describe("Vault.averagePrice", () => {
             expect(position[1]).eq("49900000000000000000000000000000") // collateral
             expect(position[2]).eq("40816326530612244897959183673469387") // averagePrice
             expect(position[3]).eq("0") // entryFundingRate
-            expect(position[4]).eq(expandDecimals(100, 8)) // reserveAmount
+            expect(position[4]).eq(expandDecimals(100)) // reserveAmount
 
             delta = formatObj(
                 await getValue(vaultUtils.functions.get_position_delta(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false)),
@@ -770,27 +770,27 @@ describe("Vault.averagePrice", () => {
             await call(BTCPricefeed.functions.set_latest_answer(toPrice(40000)))
             await call(BTCPricefeed.functions.set_latest_answer(toPrice(40000)))
 
-            await call(DAI.functions.mint(addrToAccount(user1), expandDecimals(101, 8)))
-            // await transfer(DAI.as(user1), contrToAccount(vault), expandDecimals(101, 8))
+            await call(DAI.functions.mint(addrToAccount(user1), expandDecimals(101)))
+            // await transfer(DAI.as(user1), contrToAccount(vault), expandDecimals(101))
             await call(
                 vault
                     .as(user1)
                     .functions.buy_rusd(toAsset(DAI), addrToAccount(user1))
                     .addContracts(attachedContracts)
                     .callParams({
-                        forward: [expandDecimals(101, 8), getAssetId(DAI)],
+                        forward: [expandDecimals(101), getAssetId(DAI)],
                     }),
             )
 
-            await call(DAI.functions.mint(addrToAccount(user0), expandDecimals(50, 8)))
-            // await transfer(DAI.as(user0), contrToAccount(vault), expandDecimals(50, 8))
+            await call(DAI.functions.mint(addrToAccount(user0), expandDecimals(50)))
+            // await transfer(DAI.as(user0), contrToAccount(vault), expandDecimals(50))
             await call(
                 vault
                     .connect(user0)
                     .functions.increase_position(addrToAccount(user0), toAsset(DAI), toAsset(BTC), toUsd(90), false)
                     .addContracts(attachedContracts)
                     .callParams({
-                        forward: [expandDecimals(50, 8), getAssetId(DAI)],
+                        forward: [expandDecimals(50), getAssetId(DAI)],
                     }),
             )
 
@@ -801,7 +801,7 @@ describe("Vault.averagePrice", () => {
             expect(position[1]).eq("49910000000000000000000000000000") // collateral, 50 - 90 * 0.1%
             expect(position[2]).eq(toNormalizedPrice(40000)) // averagePrice
             expect(position[3]).eq("0") // entryFundingRate
-            expect(position[4]).eq(expandDecimals(90, 8))
+            expect(position[4]).eq(expandDecimals(90))
 
             await call(BTCPricefeed.functions.set_latest_answer(toPrice(30000)))
             await call(BTCPricefeed.functions.set_latest_answer(toPrice(30000)))
@@ -827,7 +827,7 @@ describe("Vault.averagePrice", () => {
             expect(position[1]).eq("49900000000000000000000000000000") // collateral
             expect(position[2]).eq("38709677419354838709677419354838709") // averagePrice
             expect(position[3]).eq("0") // entryFundingRate
-            expect(position[4]).eq(expandDecimals(100, 8)) // reserveAmount
+            expect(position[4]).eq(expandDecimals(100)) // reserveAmount
 
             delta = formatObj(
                 await getValue(vaultUtils.functions.get_position_delta(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false)),
@@ -846,27 +846,27 @@ describe("Vault.averagePrice", () => {
             await call(BTCPricefeed.functions.set_latest_answer(toPrice(40000)))
             await call(BTCPricefeed.functions.set_latest_answer(toPrice(40000)))
 
-            await call(DAI.functions.mint(addrToAccount(user1), expandDecimals(101, 8)))
-            // await transfer(DAI.as(user1), contrToAccount(vault), expandDecimals(101, 8))
+            await call(DAI.functions.mint(addrToAccount(user1), expandDecimals(101)))
+            // await transfer(DAI.as(user1), contrToAccount(vault), expandDecimals(101))
             await call(
                 vault
                     .as(user1)
                     .functions.buy_rusd(toAsset(DAI), addrToAccount(user1))
                     .addContracts(attachedContracts)
                     .callParams({
-                        forward: [expandDecimals(101, 8), getAssetId(DAI)],
+                        forward: [expandDecimals(101), getAssetId(DAI)],
                     }),
             )
 
-            await call(DAI.functions.mint(addrToAccount(user0), expandDecimals(50, 8)))
-            // await transfer(DAI.as(user0), contrToAccount(vault), expandDecimals(50, 8))
+            await call(DAI.functions.mint(addrToAccount(user0), expandDecimals(50)))
+            // await transfer(DAI.as(user0), contrToAccount(vault), expandDecimals(50))
             await call(
                 vault
                     .connect(user0)
                     .functions.increase_position(addrToAccount(user0), toAsset(DAI), toAsset(BTC), toUsd(90), false)
                     .addContracts(attachedContracts)
                     .callParams({
-                        forward: [expandDecimals(50, 8), getAssetId(DAI)],
+                        forward: [expandDecimals(50), getAssetId(DAI)],
                     }),
             )
 
@@ -877,7 +877,7 @@ describe("Vault.averagePrice", () => {
             expect(position[1]).eq("49910000000000000000000000000000") // collateral, 50 - 90 * 0.1%
             expect(position[2]).eq(toNormalizedPrice(40000)) // averagePrice
             expect(position[3]).eq("0") // entryFundingRate
-            expect(position[4]).eq(expandDecimals(90, 8))
+            expect(position[4]).eq(expandDecimals(90))
 
             await call(BTCPricefeed.functions.set_latest_answer(toPrice(39700)))
             await call(BTCPricefeed.functions.set_latest_answer(toPrice(39700)))
@@ -903,7 +903,7 @@ describe("Vault.averagePrice", () => {
             expect(position[1]).eq("49900000000000000000000000000000") // collateral
             expect(position[2]).eq(toUsd(39700)) // averagePrice
             expect(position[3]).eq("0") // entryFundingRate
-            expect(position[4]).eq(expandDecimals(100, 8)) // reserveAmount
+            expect(position[4]).eq(expandDecimals(100)) // reserveAmount
 
             delta = formatObj(
                 await getValue(vaultUtils.functions.get_position_delta(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false)),
@@ -929,20 +929,20 @@ describe("Vault.averagePrice", () => {
             await call(ETHPricefeed.functions.set_latest_answer("252145037536"))
             await call(ETHPricefeed.functions.set_latest_answer("252145037536"))
 
-            await call(ETH.functions.mint(addrToAccount(user1), expandDecimals(10, 8)))
-            // await transfer(ETH.as(user1), contrToAccount(vault), expandDecimals(10, 8))
+            await call(ETH.functions.mint(addrToAccount(user1), expandDecimals(10)))
+            // await transfer(ETH.as(user1), contrToAccount(vault), expandDecimals(10))
             await call(
                 vault
                     .as(user1)
                     .functions.buy_rusd(toAsset(ETH), addrToAccount(user1))
                     .addContracts(attachedContracts)
                     .callParams({
-                        forward: [expandDecimals(10, 8), getAssetId(ETH)],
+                        forward: [expandDecimals(10), getAssetId(ETH)],
                     }),
             )
 
-            await call(ETH.functions.mint(addrToAccount(user0), expandDecimals(1, 8)))
-            // await transfer(ETH.as(user0), contrToAccount(vault), expandDecimals(1, 8))
+            await call(ETH.functions.mint(addrToAccount(user0), expandDecimals(1)))
+            // await transfer(ETH.as(user0), contrToAccount(vault), expandDecimals(1))
             await call(
                 vault
                     .connect(user0)
@@ -955,7 +955,7 @@ describe("Vault.averagePrice", () => {
                     )
                     .addContracts(attachedContracts)
                     .callParams({
-                        forward: [expandDecimals(1, 8), getAssetId(ETH)],
+                        forward: [expandDecimals(1), getAssetId(ETH)],
                     }),
             )
 
@@ -977,7 +977,7 @@ describe("Vault.averagePrice", () => {
             expect(delta[0]).eq(false)
             expect(delta[1]).eq("296866944860754376482796517102673")
 
-            await call(ETH.functions.mint(addrToAccount(user0), expandDecimals(1, 8)))
+            await call(ETH.functions.mint(addrToAccount(user0), expandDecimals(1)))
             await call(
                 vault
                     .connect(user0)
@@ -990,7 +990,7 @@ describe("Vault.averagePrice", () => {
                     )
                     .addContracts(attachedContracts)
                     .callParams({
-                        forward: [expandDecimals(1, 8), getAssetId(ETH)],
+                        forward: [expandDecimals(1), getAssetId(ETH)],
                     }),
             )
 
