@@ -35,9 +35,9 @@ abi Vault {
     #[storage(read)]
     fn get_gov() -> Account;
 
-    fn get_vault_storage() -> ContractId;
+    // fn get_vault_storage() -> ContractId;
 
-    fn get_vault_utils() -> ContractId;
+    // fn get_vault_utils() -> ContractId;
 
     /*
           ____  ____        _     _ _      

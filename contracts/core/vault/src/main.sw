@@ -95,13 +95,13 @@ impl Vault for Contract {
         storage.gov.read()
     }
 
-    fn get_vault_storage() -> ContractId {
-        VAULT_STORAGE
-    }
+    // fn get_vault_storage() -> ContractId {
+    //     VAULT_STORAGE
+    // }
 
-    fn get_vault_utils() -> ContractId {
-        VAULT_UTILS
-    }
+    // fn get_vault_utils() -> ContractId {
+    //     VAULT_UTILS
+    // }
 
     /*
           ____  ____        _     _ _      
