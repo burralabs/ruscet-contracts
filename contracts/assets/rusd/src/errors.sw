@@ -12,15 +12,6 @@ pub enum Error {
 
     YieldAssetMintToZeroAccount: (),
     YieldAssetBurnFromZeroAccount: (),
-    YieldAssetTransferFromZeroAccount: (),
-    YieldAssetTransferToZeroAccount: (),
     YieldAssetApproveFromZeroAccount: (),
     YieldAssetApproveToZeroAccount: (),
-
-    YieldAssetMsgSenderNotWhitelisted: (),
-    YieldAssetInsufficientAllowance: (),
-    YieldAssetInsufficientBalance: (),
-    YieldAssetBurnAmountExceedsBalance: (),
-
-    YieldAssetInsufficientTransferAmountForwarded: (),
 }

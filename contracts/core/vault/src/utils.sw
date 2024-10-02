@@ -739,13 +739,16 @@ pub fn _sell_rusd(
 
     let _amount = u64::try_from(rusd_amount).unwrap();
 
-    abi(RUSD, vault_storage.get_rusd_contr().into()).burn{
-        // @TODO: this is prob a buggy implementation of the RUSD native asset? 
+    let rusd_contr = abi(RUSD, vault_storage.get_rusd_contr().into());
+    rusd_contr.burn{
         asset_id: rusd.into(),
         coins: _amount
     }(
         Account::from(ContractId::this()),
-        _amount
+        _amount,
+        // this will actually lead to the incorrect reward calculation in RUSD->YieldTracker.update_rewards(),
+        // but there is no actual way to query the staked balance of the receiver in the Vault
+        0
     );
 
     // update asset balance
@@ -843,7 +846,10 @@ pub fn _buy_rusd(
     let rusd = abi(RUSD, vault_storage.get_rusd_contr().into());
     rusd.mint(
         receiver,
-        u64::try_from(mint_amount).unwrap()
+        u64::try_from(mint_amount).unwrap(),
+        // this will actually lead to the incorrect reward calculation in RUSD->YieldTracker.update_rewards(),
+        // but there is no actual way to query the staked balance of the receiver in the Vault
+        0
     );
 
     log(BuyRUSD {
