@@ -39,7 +39,6 @@ storage {
     symbol: StorageString = StorageString {},
     decimals: u8 = 8,
 
-    balances: StorageMap<Account, u64> = StorageMap::<Account, u64> {},
     total_supply: u64 = 0,
 
     minters: StorageMap<Account, bool> = StorageMap::<Account, bool> {},
@@ -118,11 +117,6 @@ impl RLP for Contract {
         storage.total_supply.read()
     }
 
-    #[storage(read)]
-    fn balance_of(who: Account) -> u64 {
-        storage.balances.get(who).try_read().unwrap_or(0)
-    }
-
     /*
           ____  ____        _     _ _      
          / / / |  _ \ _   _| |__ | (_) ___ 
@@ -130,16 +124,6 @@ impl RLP for Contract {
        / / /   |  __/| |_| | |_) | | | (__ 
       /_/_/    |_|    \__,_|_.__/|_|_|\___|
     */
-    #[payable]
-    #[storage(read, write)]
-    fn transfer(
-        to: Account,
-        amount: u64
-    ) -> bool {
-        _transfer(get_sender(), to, amount);
-        true
-    }
-
     #[storage(read, write)]
     fn mint(account: Account, amount: u64) {
         _only_minter();
@@ -180,9 +164,6 @@ fn _mint(
     let identity = account_to_identity(account);
 
     storage.total_supply.write(storage.total_supply.read() + amount);
-    storage.balances.get(account).write(
-        storage.balances.get(account).try_read().unwrap_or(0) + amount
-    );
 
     // sub-id: ZERO_B256
     mint_to(identity, ZERO, amount);
@@ -205,42 +186,8 @@ fn _burn(
         Error::RLPInvalidBurnAmountForwarded
     );
 
-    let account_balance = storage.balances.get(account).try_read().unwrap_or(0);
-    require(account_balance >= amount, Error::RLPBurnAmountExceedsBalance);
-
-    storage.balances.get(account).write(account_balance - amount);
     storage.total_supply.write(storage.total_supply.read() - amount);
 
     // sub-id: ZERO_B256
     asset_burn(ZERO, amount);
-}
-
-#[payable]
-#[storage(read, write)]
-fn _transfer(
-    sender: Account,
-    recipient: Account,
-    amount: u64
-) {
-    require(sender != ZERO_ACCOUNT, Error::RLPTransferFromZeroAccount);
-    require(recipient != ZERO_ACCOUNT, Error::RLPTransferToZeroAccount);
-
-    require(
-        amount == msg_amount(),
-        Error::RLPInsufficientTransferAmountForwarded
-    );
-
-    let sender_balance = storage.balances.get(sender).try_read().unwrap_or(0);
-    require(sender_balance >= amount, Error::RLPInsufficientBalance);
-
-    storage.balances.get(sender).write(sender_balance - amount);
-    storage.balances.get(recipient).write(
-        storage.balances.get(recipient).try_read().unwrap_or(0) + amount
-    );
-
-    transfer_assets(
-        msg_asset_id(),
-        recipient,
-        amount
-    );
 }

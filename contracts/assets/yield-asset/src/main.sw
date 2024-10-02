@@ -42,9 +42,7 @@ storage {
     symbol: StorageString = StorageString {},
     decimals: u8 = 8,
 
-    balances: StorageMap<Account, u64> = StorageMap::<Account, u64> {},
     total_supply: u64 = 0,
-    non_staking_supply: u64 = 0,
 
     yield_trackers: StorageVec<ContractId> = StorageVec::<ContractId> {},
     non_staking_accounts: StorageMap<Account, bool> = StorageMap::<Account, bool> {},
@@ -72,7 +70,7 @@ impl YieldAsset for Contract {
         
         storage.gov.write(get_sender());
         storage.admins.insert(get_sender(), true);
-        _mint(get_sender(), initial_supply);
+        _mint(get_sender(), initial_supply, 0);
     }
 
     /*
@@ -128,57 +126,67 @@ impl YieldAsset for Contract {
     }
 
     #[storage(read, write)]
-    fn add_nonstaking_account(account: Account) {
+    fn add_nonstaking_account(account: Account,
+        // staked balance of the account
+        staked_balance: u256
+    ) {
         _only_admin();
         require(
             !storage.non_staking_accounts.get(account).try_read().unwrap_or(false),
             Error::YieldAssetAccountNotMarked
         );
 
-        _update_rewards(account);
+        _update_rewards(account, staked_balance);
         storage.non_staking_accounts.insert(account, true);
-        storage.non_staking_supply.write(
-            storage.non_staking_supply.read() + storage.balances.get(account).try_read().unwrap_or(0)
-        );
     }
 
     #[storage(read, write)]
-    fn remove_nonstaking_account(account: Account) {
+    fn remove_nonstaking_account(
+        account: Account,
+        // staked balance of the account
+        staked_balance: u256
+    ) {
         _only_admin();
         require(
             storage.non_staking_accounts.get(account).try_read().unwrap_or(false),
             Error::YieldAssetAccountNotMarked
         );
 
-        _update_rewards(account);
-        storage.non_staking_accounts.insert(account, false);
-        storage.non_staking_supply.write(
-            storage.non_staking_supply.read() - storage.balances.get(account).try_read().unwrap_or(0)
-        );
+        _update_rewards(account, staked_balance);
+        storage.non_staking_accounts.remove(account);
     }
 
     #[storage(read)]
-    fn recover_claim(account: Account, receiver: Account) {
+    fn recover_claim(
+        account: Account,
+        receiver: Account,
+        // staked balance of the account
+        staked_balance: u256
+    ) {
         _only_admin();
         let mut i = 0;
         let len = storage.yield_trackers.len();
 
         while i < len {
             let yield_tracker = storage.yield_trackers.get(i).unwrap().read();
-            abi(YieldTracker, yield_tracker.into()).claim(account, receiver);
+            abi(YieldTracker, yield_tracker.into()).claim(account, receiver, staked_balance);
             i += 1;
         }
     }
 
     #[storage(read)]
-    fn claim(receiver: Account) {
+    fn claim(
+        receiver: Account,
+        // staked balance of the account
+        staked_balance: u256
+    ) {
         _only_admin();
         let mut i = 0;
         let len = storage.yield_trackers.len();
 
         while i < len {
             let yield_tracker = storage.yield_trackers.get(i).unwrap().read();
-            abi(YieldTracker, yield_tracker.into()).claim(get_sender(), receiver);
+            abi(YieldTracker, yield_tracker.into()).claim(get_sender(), receiver, staked_balance);
             i += 1;
         }
     }
@@ -210,39 +218,8 @@ impl YieldAsset for Contract {
     }
 
     #[storage(read)]
-    fn balance_of(who: Account) -> u64 {
-        storage.balances.get(who).try_read().unwrap_or(0)
-    }
-
-    #[storage(read)]
-    fn staked_balance_of(who: Account) -> u64 {
-        if storage.non_staking_accounts.get(who).try_read().unwrap_or(false) {
-            return 0;
-        }
-
-        storage.balances.get(who).try_read().unwrap_or(0)
-    }
-
-    #[storage(read)]
     fn total_staked() -> u64 {
-        storage.total_supply.read() - storage.non_staking_supply.read()
-    }
-
-    /*
-          ____  ____        _     _ _      
-         / / / |  _ \ _   _| |__ | (_) ___ 
-        / / /  | |_) | | | | '_ \| | |/ __|
-       / / /   |  __/| |_| | |_) | | | (__ 
-      /_/_/    |_|    \__,_|_.__/|_|_|\___|
-    */
-    #[payable]
-    #[storage(read, write)]
-    fn transfer(
-        to: Account,
-        amount: u64
-    ) -> bool {
-        _transfer(get_sender(), to, amount);
-        true
+        storage.total_supply.read()
     }
 }
 
@@ -265,22 +242,15 @@ fn _only_admin() {
 #[storage(read, write)]
 fn _mint(
     account: Account,
-    amount: u64
+    amount: u64,
+    // staked balance of the account
+    staked_balance: u256,
 ) {
     require(account != ZERO_ACCOUNT, Error::YieldAssetMintToZeroAccount);
 
-    _update_rewards(account);
+    _update_rewards(account, staked_balance);
 
     storage.total_supply.write(storage.total_supply.read() + amount);
-    storage.balances.get(account).write(
-        storage.balances.get(account).try_read().unwrap_or(0) + amount
-    );
-
-    if storage.non_staking_accounts.get(account).try_read().unwrap_or(false) {
-        storage.non_staking_supply.write(
-            storage.non_staking_supply.read() + amount
-        );
-    }
 
     let identity = account_to_identity(account);
 
@@ -288,66 +258,18 @@ fn _mint(
     mint_to(identity, ZERO, amount);
 }
 
-#[payable]
-#[storage(read, write)]
-fn _transfer(
-    sender: Account,
-    recipient: Account,
-    amount: u64
-) {
-    require(sender != ZERO_ACCOUNT, Error::YieldAssetTransferFromZeroAccount);
-    require(recipient != ZERO_ACCOUNT, Error::YieldAssetTransferToZeroAccount);
-
-    require(
-        amount == msg_amount(),
-        Error::YieldAssetInsufficientTransferAmountForwarded
-    );
-
-    if storage.in_whitelist_mode.read() {
-        require(
-            storage.whitelisted_handlers.get(get_sender()).try_read().unwrap_or(false),
-            Error::YieldAssetMsgSenderNotWhitelisted
-        );
-    }
-
-    _update_rewards(sender);
-    _update_rewards(recipient);
-
-    let sender_balance = storage.balances.get(sender).try_read().unwrap_or(0);
-    require(sender_balance >= amount, Error::YieldAssetInsufficientBalance);
-
-    storage.balances.get(sender).write(sender_balance - amount);
-    storage.balances.get(recipient).write(
-        storage.balances.get(recipient).try_read().unwrap_or(0) + amount
-    );
-
-    if storage.non_staking_accounts.get(sender).try_read().unwrap_or(false) {
-        storage.non_staking_supply.write(
-            storage.non_staking_supply.read() - amount
-        );
-    }
-
-    if storage.non_staking_accounts.get(recipient).try_read().unwrap_or(false) {
-        storage.non_staking_supply.write(
-            storage.non_staking_supply.read() - amount
-        );
-    }
-
-    transfer_assets(
-        msg_asset_id(),
-        recipient,
-        amount
-    );
-}
-
 #[storage(read)]
-fn _update_rewards(account: Account) {
+fn _update_rewards(
+    account: Account,
+    // staked balance of the account
+    staked_balance: u256
+) {
     let mut i = 0;
     let len = storage.yield_trackers.len();
 
     while i < len {
         let yield_tracker = storage.yield_trackers.get(i).unwrap().read();
-        abi(YieldTracker, yield_tracker.into()).update_rewards(account);
+        abi(YieldTracker, yield_tracker.into()).update_rewards(account, staked_balance);
         i += 1;
     }
 }
