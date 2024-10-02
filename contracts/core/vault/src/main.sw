@@ -95,13 +95,13 @@ impl Vault for Contract {
         storage.gov.read()
     }
 
-    fn get_vault_storage() -> ContractId {
-        VAULT_STORAGE
-    }
+    // fn get_vault_storage() -> ContractId {
+    //     VAULT_STORAGE
+    // }
 
-    fn get_vault_utils() -> ContractId {
-        VAULT_UTILS
-    }
+    // fn get_vault_utils() -> ContractId {
+    //     VAULT_UTILS
+    // }
 
     /*
           ____  ____        _     _ _      
@@ -119,6 +119,7 @@ impl Vault for Contract {
         );
     }
 
+    #[payable]
     fn buy_rusd(asset: AssetId, receiver: Account) -> u256 {
         _buy_rusd(
             asset,
@@ -128,6 +129,7 @@ impl Vault for Contract {
         )
     }
 
+    #[payable]
     fn sell_rusd(asset: AssetId, receiver: Account) -> u256 {
         _sell_rusd(
             asset,

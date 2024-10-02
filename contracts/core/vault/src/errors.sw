@@ -13,7 +13,8 @@ pub enum Error {
     VaultInvalidAssetAmount: (),
     VaultInvalidRusdAmount: (),
     VaultInvalidRedemptionAmount: (),
-    VaultZeroAmountOfAssetForwarded: (),
+
+    VaultInvalidAssetForwarded: (),
 
     VaultInvalidAmountOut: (),
 
@@ -38,11 +39,11 @@ pub enum Error {
     VaultInvalidPosition: (),
     VaultInvalidPositionSize: (),
 
+    VaultCollateralAssetNotWhitelisted: (),
+
     VaultLongCollateralIndexAssetsMismatch: (),
-    VaultLongCollateralAssetNotWhitelisted: (),
     VaultLongCollateralAssetMustNotBeStableAsset: (),
 
-    VaultShortCollateralAssetNotWhitelisted: (),
     VaultShortCollateralAssetMustBeStableAsset: (),
     VaultShortIndexAssetMustNotBeStableAsset: (),
     VaultShortIndexAssetNotShortable: (),

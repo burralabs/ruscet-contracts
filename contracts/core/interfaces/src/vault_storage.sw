@@ -241,9 +241,6 @@ abi VaultStorage {
       /_/_/    |_|    \__,_|_.__/|_|_|\___|
     */
     #[storage(write)]
-    fn write_asset_balance(asset: AssetId, bal: u64);
-
-    #[storage(write)]
     fn write_last_funding_time(asset: AssetId, last_funding_time: u64);
 
     #[storage(write)]

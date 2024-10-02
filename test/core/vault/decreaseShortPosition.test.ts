@@ -174,19 +174,28 @@ describe("Vault.decreaseShortPosition", () => {
         ).to.be.revertedWith("VaultEmptyPosition")
 
         await call(DAI.functions.mint(addrToAccount(user0), expandDecimals(1000)))
-        await transfer(DAI.as(user0), contrToAccount(vault), expandDecimals(100))
-        await call(vault.functions.buy_rusd(toAsset(DAI), addrToAccount(user1)).addContracts(attachedContracts))
+        await call(
+            vault
+                .as(user0)
+                .functions.buy_rusd(toAsset(DAI), addrToAccount(user1))
+                .addContracts(attachedContracts)
+                .callParams({
+                    forward: [expandDecimals(100), getAssetId(DAI)],
+                }),
+        )
 
         await call(BTCPricefeed.functions.set_latest_answer(toPrice(40000)))
         await call(BTCPricefeed.functions.set_latest_answer(toPrice(41000)))
         await call(BTCPricefeed.functions.set_latest_answer(toPrice(40000)))
 
-        await transfer(DAI.as(user0), contrToAccount(vault), expandDecimals(10))
         await call(
             vault
                 .connect(user0)
                 .functions.increase_position(addrToAccount(user0), toAsset(DAI), toAsset(BTC), toUsd(90), false)
-                .addContracts(attachedContracts),
+                .addContracts(attachedContracts)
+                .callParams({
+                    forward: [expandDecimals(10), getAssetId(DAI)],
+                }),
         )
 
         let position = formatObj(
@@ -352,19 +361,28 @@ describe("Vault.decreaseShortPosition", () => {
         ).to.be.revertedWith("VaultEmptyPosition")
 
         await call(DAI.functions.mint(addrToAccount(user0), expandDecimals(1000)))
-        await transfer(DAI.as(user0), contrToAccount(vault), expandDecimals(100))
-        await call(vault.functions.buy_rusd(toAsset(DAI), addrToAccount(user1)).addContracts(attachedContracts))
+        await call(
+            vault
+                .as(user0)
+                .functions.buy_rusd(toAsset(DAI), addrToAccount(user1))
+                .addContracts(attachedContracts)
+                .callParams({
+                    forward: [expandDecimals(100), getAssetId(DAI)],
+                }),
+        )
 
         await call(BTCPricefeed.functions.set_latest_answer(toPrice(40000)))
         await call(BTCPricefeed.functions.set_latest_answer(toPrice(41000)))
         await call(BTCPricefeed.functions.set_latest_answer(toPrice(40000)))
 
-        await transfer(DAI.as(user0), contrToAccount(vault), expandDecimals(10))
         await call(
             vault
                 .connect(user0)
                 .functions.increase_position(addrToAccount(user0), toAsset(DAI), toAsset(BTC), toUsd(90), false)
-                .addContracts(attachedContracts),
+                .addContracts(attachedContracts)
+                .callParams({
+                    forward: [expandDecimals(10), getAssetId(DAI)],
+                }),
         )
 
         let position = formatObj(
@@ -386,21 +404,6 @@ describe("Vault.decreaseShortPosition", () => {
         )
         expect(delta[0]).eq(true)
         expect(delta[1]).eq(toUsd(0))
-
-        // @TODO: uncomment when mineBlock is supported in Fuel
-        // await increaseTime(provider, 50 * 60)
-        // await mineBlock(provider)
-
-        // delta = formatObj(await getValue(vaultUtils.functions.get_position_delta(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false)))
-        // expect(delta[0]).eq(true)
-        // expect(delta[1]).eq("0")
-
-        // await increaseTime(provider, 10 * 60 + 10)
-        // await mineBlock(provider)
-
-        // delta = formatObj(await getValue(vaultUtils.functions.get_position_delta(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false)))
-        // expect(delta[0]).eq(true)
-        // expect(delta[1]).eq("67275000000000000000") // 0.67275
     })
 
     it("decreasePosition short with loss", async () => {
@@ -428,19 +431,28 @@ describe("Vault.decreaseShortPosition", () => {
         await call(vaultStorage.functions.set_asset_config(...getBtcConfig(BTC)))
 
         await call(DAI.functions.mint(addrToAccount(user0), expandDecimals(1000)))
-        await transfer(DAI.as(user0), contrToAccount(vault), expandDecimals(100))
-        await call(vault.functions.buy_rusd(toAsset(DAI), addrToAccount(user1)).addContracts(attachedContracts))
+        await call(
+            vault
+                .as(user0)
+                .functions.buy_rusd(toAsset(DAI), addrToAccount(user1))
+                .addContracts(attachedContracts)
+                .callParams({
+                    forward: [expandDecimals(100), getAssetId(DAI)],
+                }),
+        )
 
         await call(BTCPricefeed.functions.set_latest_answer(toPrice(40000)))
         await call(BTCPricefeed.functions.set_latest_answer(toPrice(41000)))
         await call(BTCPricefeed.functions.set_latest_answer(toPrice(40000)))
 
-        await transfer(DAI.as(user0), contrToAccount(vault), expandDecimals(10))
         await call(
             vault
                 .connect(user0)
                 .functions.increase_position(addrToAccount(user0), toAsset(DAI), toAsset(BTC), toUsd(90), false)
-                .addContracts(attachedContracts),
+                .addContracts(attachedContracts)
+                .callParams({
+                    forward: [expandDecimals(10), getAssetId(DAI)],
+                }),
         )
 
         let position = formatObj(

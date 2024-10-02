@@ -134,13 +134,15 @@ describe("Vault.increaseShortPosition", function () {
                 .addContracts(attachedContracts)
                 .call(),
         ).to.be.revertedWith("VaultInvalidMsgCaller")
+
         await expect(
             vault
                 .connect(user0)
                 .functions.increase_position(addrToAccount(user0), toAsset(DAI), toAsset(BTC), toUsd(1000), false)
                 .addContracts(attachedContracts)
                 .call(),
-        ).to.be.revertedWith("VaultShortCollateralAssetNotWhitelisted")
+        ).to.be.revertedWith("VaultCollateralAssetNotWhitelisted")
+
         await expect(
             vault
                 .connect(user0)
@@ -201,6 +203,7 @@ describe("Vault.increaseShortPosition", function () {
                 .addContracts(attachedContracts)
                 .call(),
         ).to.be.revertedWith("VaultInsufficientCollateralForFees")
+
         await expect(
             vault
                 .connect(user0)
@@ -210,23 +213,26 @@ describe("Vault.increaseShortPosition", function () {
         ).to.be.revertedWith("VaultInvalidPositionSize")
 
         await call(DAI.functions.mint(addrToAccount(user0), expandDecimals(1000)))
-        await transfer(DAI.as(user0), contrToAccount(vault), expandDecimals(9, 7))
 
         await expect(
             vault
                 .connect(user0)
                 .functions.increase_position(addrToAccount(user0), toAsset(DAI), toAsset(BTC), toUsd(1000), false)
                 .addContracts(attachedContracts)
+                .callParams({
+                    forward: [expandDecimals(9, 7), getAssetId(DAI)],
+                })
                 .call(),
         ).to.be.revertedWith("VaultInsufficientCollateralForFees")
 
-        await transfer(DAI.as(user0), contrToAccount(vault), expandDecimals(4))
-
         await expect(
             vault
                 .connect(user0)
                 .functions.increase_position(addrToAccount(user0), toAsset(DAI), toAsset(BTC), toUsd(1000), false)
                 .addContracts(attachedContracts)
+                .callParams({
+                    forward: [BigNumber.from(expandDecimals(9, 7)).add(expandDecimals(4)).toString(), getAssetId(DAI)],
+                })
                 .call(),
         ).to.be.revertedWith("VaultLossesExceedCollateral")
 
@@ -239,16 +245,23 @@ describe("Vault.increaseShortPosition", function () {
                 .connect(user0)
                 .functions.increase_position(addrToAccount(user0), toAsset(DAI), toAsset(BTC), toUsd(100), false)
                 .addContracts(attachedContracts)
+                .callParams({
+                    forward: [BigNumber.from(expandDecimals(9, 7)).add(expandDecimals(4)).toString(), getAssetId(DAI)],
+                })
                 .call(),
         ).to.be.revertedWith("VaultLiquidationFeesExceedCollateral")
-
-        await transfer(DAI.as(user0), contrToAccount(vault), expandDecimals(6))
 
         await expect(
             vault
                 .connect(user0)
                 .functions.increase_position(addrToAccount(user0), toAsset(DAI), toAsset(BTC), toUsd(8), false)
                 .addContracts(attachedContracts)
+                .callParams({
+                    forward: [
+                        BigNumber.from(expandDecimals(9, 7)).add(expandDecimals(4)).add(expandDecimals(6)).toString(),
+                        getAssetId(DAI),
+                    ],
+                })
                 .call(),
         ).to.be.revertedWith("VaultSizeMustBeMoreThanCollateral")
 
@@ -261,6 +274,12 @@ describe("Vault.increaseShortPosition", function () {
                 .connect(user0)
                 .functions.increase_position(addrToAccount(user0), toAsset(DAI), toAsset(BTC), toUsd(600), false)
                 .addContracts(attachedContracts)
+                .callParams({
+                    forward: [
+                        BigNumber.from(expandDecimals(9, 7)).add(expandDecimals(4)).add(expandDecimals(6)).toString(),
+                        getAssetId(DAI),
+                    ],
+                })
                 .call(),
         ).to.be.revertedWith("VaultMaxLeverageExceeded")
 
@@ -269,6 +288,12 @@ describe("Vault.increaseShortPosition", function () {
                 .connect(user0)
                 .functions.increase_position(addrToAccount(user0), toAsset(DAI), toAsset(BTC), toUsd(100), false)
                 .addContracts(attachedContracts)
+                .callParams({
+                    forward: [
+                        BigNumber.from(expandDecimals(9, 7)).add(expandDecimals(4)).add(expandDecimals(6)).toString(),
+                        getAssetId(DAI),
+                    ],
+                })
                 .call(),
         ).to.be.revertedWith("VaultReserveExceedsPool")
     })
@@ -308,13 +333,17 @@ describe("Vault.increaseShortPosition", function () {
         await call(BTCPricefeed.functions.set_latest_answer(toPrice(40000)))
 
         await call(DAI.functions.mint(addrToAccount(user0), expandDecimals(1000)))
-        await transfer(DAI.as(user0), contrToAccount(vault), expandDecimals(500))
+        await call(DAI.functions.mint(addrToAccount(user1), expandDecimals(1000)))
+        await call(DAI.functions.mint(addrToAccount(user2), expandDecimals(1000)))
 
         await expect(
             vault
                 .connect(user0)
                 .functions.increase_position(addrToAccount(user0), toAsset(DAI), toAsset(BTC), toUsd(99), false)
                 .addContracts(attachedContracts)
+                .callParams({
+                    forward: [expandDecimals(500), getAssetId(DAI)],
+                })
                 .call(),
         ).to.be.revertedWith("VaultSizeMustBeMoreThanCollateral")
 
@@ -323,6 +352,9 @@ describe("Vault.increaseShortPosition", function () {
                 .connect(user0)
                 .functions.increase_position(addrToAccount(user0), toAsset(DAI), toAsset(BTC), toUsd(501), false)
                 .addContracts(attachedContracts)
+                .callParams({
+                    forward: [expandDecimals(500), getAssetId(DAI)],
+                })
                 .call(),
         ).to.be.revertedWith("VaultReserveExceedsPool")
 
@@ -331,7 +363,15 @@ describe("Vault.increaseShortPosition", function () {
         expect(await getValStr(vaultUtils.functions.get_pool_amounts(toAsset(DAI)))).eq("0")
 
         expect(await getValStr(vaultUtils.functions.get_redemption_collateral_usd(toAsset(DAI)))).eq("0")
-        await call(vault.functions.buy_rusd(toAsset(DAI), addrToAccount(user1)).addContracts(attachedContracts))
+        await call(
+            vault
+                .as(user0)
+                .functions.buy_rusd(toAsset(DAI), addrToAccount(user1))
+                .addContracts(attachedContracts)
+                .callParams({
+                    forward: [expandDecimals(500), getAssetId(DAI)],
+                }),
+        )
         expect(await getValStr(vaultUtils.functions.get_redemption_collateral_usd(toAsset(DAI)))).eq(
             "499800000000000000000000000000000",
         )
@@ -340,12 +380,14 @@ describe("Vault.increaseShortPosition", function () {
         expect(await globalDelta[0]).eq(false)
         expect(await globalDelta[1]).eq("0")
 
-        await transfer(DAI.as(user0), contrToAccount(vault), expandDecimals(20))
         await expect(
             vault
                 .connect(user0)
                 .functions.increase_position(addrToAccount(user0), toAsset(DAI), toAsset(BTC), toUsd(501), false)
                 .addContracts(attachedContracts)
+                .callParams({
+                    forward: [expandDecimals(20), getAssetId(DAI)],
+                })
                 .call(),
         ).to.be.revertedWith("VaultReserveExceedsPool")
 
@@ -369,6 +411,9 @@ describe("Vault.increaseShortPosition", function () {
             vault
                 .connect(user0)
                 .functions.increase_position(addrToAccount(user0), toAsset(DAI), toAsset(BTC), toUsd(90), false)
+                .callParams({
+                    forward: [expandDecimals(20), getAssetId(DAI)],
+                })
                 .addContracts(attachedContracts),
         )
 
@@ -478,6 +523,9 @@ describe("Vault.increaseShortPosition", function () {
             vault
                 .connect(user1)
                 .functions.increase_position(addrToAccount(user1), toAsset(DAI), toAsset(BTC), toUsd(200), false)
+                .callParams({
+                    forward: [expandDecimals(20), getAssetId(DAI)],
+                })
                 .addContracts(attachedContracts),
         )
 
@@ -515,6 +563,9 @@ describe("Vault.increaseShortPosition", function () {
             vault
                 .connect(user2)
                 .functions.increase_position(addrToAccount(user2), toAsset(DAI), toAsset(BTC), toUsd(60), false)
+                .callParams({
+                    forward: [expandDecimals(20), getAssetId(DAI)],
+                })
                 .addContracts(attachedContracts),
         )
 
@@ -534,6 +585,9 @@ describe("Vault.increaseShortPosition", function () {
                 .connect(user2)
                 .functions.increase_position(addrToAccount(user2), toAsset(DAI), toAsset(BTC), toUsd(60), false)
                 .addContracts(attachedContracts)
+                .callParams({
+                    forward: [expandDecimals(20), getAssetId(DAI)],
+                })
                 .call(),
         ).to.be.revertedWith("VaultMaxShortsExceeded")
 
@@ -541,6 +595,9 @@ describe("Vault.increaseShortPosition", function () {
             vault
                 .connect(user2)
                 .functions.increase_position(addrToAccount(user2), toAsset(DAI), toAsset(BNB), toUsd(60), false)
+                .callParams({
+                    forward: [expandDecimals(20), getAssetId(DAI)],
+                })
                 .addContracts(attachedContracts),
         )
     })

@@ -9,7 +9,7 @@
         "gen:contract:types": "sh ./utils/generate-contract-types.sh",
         "process:types": "python3 utils/process_types.py",
         "test": "hardhat test",
-        "test:specific": "hardhat test test/core/vault/decreaseShortPosition.test.ts",
+        "test:specific": "hardhat test test/core/vault/averagePrice.test.ts",
         "p": "biome format --write ."
     },
     "devDependencies": {

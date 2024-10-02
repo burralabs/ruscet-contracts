@@ -35,9 +35,9 @@ abi Vault {
     #[storage(read)]
     fn get_gov() -> Account;
 
-    fn get_vault_storage() -> ContractId;
+    // fn get_vault_storage() -> ContractId;
 
-    fn get_vault_utils() -> ContractId;
+    // fn get_vault_utils() -> ContractId;
 
     /*
           ____  ____        _     _ _      
@@ -49,8 +49,10 @@ abi Vault {
     #[payable]
     fn direct_pool_deposit(asset: AssetId);
 
+    #[payable]
     fn buy_rusd(asset: AssetId, receiver: Account) -> u256;
 
+    #[payable]
     fn sell_rusd(asset: AssetId, receiver: Account) -> u256;
 
     #[payable]

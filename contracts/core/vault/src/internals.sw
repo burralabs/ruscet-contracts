@@ -2,6 +2,7 @@
 library;
 
 use std::{
+    call_frames::msg_asset_id,
     context::*,
     primitive_conversions::{
         u8::*,
@@ -66,17 +67,20 @@ pub fn _validate_assets(
 ) {
     let vault_storage = abi(VaultStorage, vault_storage_.into());
 
+    require(
+        vault_storage.is_asset_whitelisted(collateral_asset),
+        Error::VaultCollateralAssetNotWhitelisted
+    );
+
+    let collateral_is_stable = vault_storage.is_stable_asset(collateral_asset);
+
     if is_long {
         require(
             collateral_asset == index_asset,
             Error::VaultLongCollateralIndexAssetsMismatch
         );
         require(
-            vault_storage.is_asset_whitelisted(collateral_asset),
-            Error::VaultLongCollateralAssetNotWhitelisted
-        );
-        require(
-            !vault_storage.is_stable_asset(collateral_asset),
+            !collateral_is_stable,
             Error::VaultLongCollateralAssetMustNotBeStableAsset
         );
 
@@ -84,11 +88,7 @@ pub fn _validate_assets(
     }
 
     require(
-        vault_storage.is_asset_whitelisted(collateral_asset),
-        Error::VaultShortCollateralAssetNotWhitelisted
-    );
-    require(
-        vault_storage.is_stable_asset(collateral_asset),
+        collateral_is_stable,
         Error::VaultShortCollateralAssetMustBeStableAsset
     );
     require(
@@ -129,35 +129,27 @@ pub fn _validate_buffer_amount(
     }
 }
 
-pub fn _transfer_in(asset_id: AssetId, vault_storage_: ContractId) -> u64 {
-    let vault_storage = abi(VaultStorage, vault_storage_.into());
+pub fn _transfer_in(asset_id: AssetId) -> u64 {
+    if msg_amount() > 0 {
+        require(
+            msg_asset_id() == asset_id,
+            Error::VaultInvalidAssetForwarded
+        );
+    }
     
-    let prev_balance = vault_storage.get_asset_balance(asset_id);
-    let next_balance = balance_of(ContractId::this(), asset_id);
-    vault_storage.write_asset_balance(asset_id, next_balance);
-
-    require(
-        next_balance >= prev_balance,
-        Error::VaultZeroAmountOfAssetForwarded
-    );
-
-    next_balance - prev_balance
+    msg_amount()
 }
 
 pub fn _transfer_out(
     asset_id: AssetId, 
     amount: u64, 
-    receiver: Account,
-    vault_storage_: ContractId
+    receiver: Account
 ) {
-    let vault_storage = abi(VaultStorage, vault_storage_.into());
-
     transfer_assets(
         asset_id,
         receiver,
         amount
     );
-    vault_storage.write_asset_balance(asset_id, balance_of(ContractId::this(), asset_id));
 }
 
 // for longs:  next_average_price = (next_price * next_size) / (next_size + delta)

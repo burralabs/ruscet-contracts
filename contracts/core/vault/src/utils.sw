@@ -104,7 +104,7 @@ pub fn _increase_position(
         vault_utils_
     );
 
-    let collateral_delta = _transfer_in(collateral_asset, vault_storage_).as_u256();
+    let collateral_delta = _transfer_in(collateral_asset).as_u256();
     let collateral_delta_usd = vault_utils.asset_to_usd_min(collateral_asset, collateral_delta);
 
     position.collateral = position.collateral + collateral_delta_usd;
@@ -367,8 +367,7 @@ pub fn _decrease_position(
         _transfer_out(
             collateral_asset, 
             u64::try_from(amount_out_after_fees).unwrap(), 
-            receiver,
-            vault_storage_
+            receiver
         );
         
         vault_storage.write_position(position_key, position);
@@ -615,8 +614,7 @@ pub fn _liquidate_position(
         collateral_asset, 
         // @TODO: potential revert here
         u64::try_from(vault_utils.usd_to_asset_min(collateral_asset, liquidation_fee_usd)).unwrap(),
-        fee_receiver,
-        vault_storage_
+        fee_receiver
     );
 }
 
@@ -648,7 +646,7 @@ pub fn _swap(
     vault_utils.update_cumulative_funding_rate(asset_in, asset_in);
     vault_utils.update_cumulative_funding_rate(asset_out, asset_out);
 
-    let amount_in = _transfer_in(asset_in, vault_storage_).as_u256();
+    let amount_in = _transfer_in(asset_in).as_u256();
     require(amount_in > 0, Error::VaultInvalidAmountIn);
 
     let price_in = vault_utils.get_min_price(asset_in);
@@ -686,7 +684,7 @@ pub fn _swap(
 
     _validate_buffer_amount(asset_out, vault_storage_, vault_utils_);
 
-    _transfer_out(asset_out, amount_out_after_fees, receiver, vault_storage_);
+    _transfer_out(asset_out, amount_out_after_fees, receiver);
 
     log(Swap {
         account: receiver,
@@ -722,7 +720,7 @@ pub fn _sell_rusd(
 
     let rusd = vault_storage.get_rusd();
 
-    let rusd_amount = _transfer_in(rusd, vault_storage_).as_u256();
+    let rusd_amount = _transfer_in(rusd).as_u256();
     require(rusd_amount > 0, Error::VaultInvalidRusdAmount);
 
     vault_utils.update_cumulative_funding_rate(asset, asset);
@@ -753,15 +751,9 @@ pub fn _sell_rusd(
         0
     );
 
-    // the _transferIn call increased the value of tokenBalances[rusd]
-    // usually decreases in token balances are synced by calling _transferOut
-    // however, for UDFG, the assets are burnt, so _updateTokenBalance should
-    // be manually called to record the decrease in assets
     // update asset balance
-    let next_balance = balance_of(ContractId::this(), asset);
-    vault_storage.write_asset_balance(asset, next_balance);
+    let _next_balance = balance_of(ContractId::this(), asset);
 
-    // _get_sell_rusd_fee_basis_points
     let fee_basis_points = vault_utils.get_fee_basis_points(
         asset,
         rusd_amount,
@@ -779,7 +771,7 @@ pub fn _sell_rusd(
     );
     require(amount_out > 0, Error::VaultInvalidAmountOut);
 
-    _transfer_out(asset, amount_out, receiver, vault_storage_);
+    _transfer_out(asset, amount_out, receiver);
 
     log(SellRUSD {
         account: receiver,
@@ -811,7 +803,7 @@ pub fn _buy_rusd(
         Error::VaultAssetNotWhitelisted
     );
 
-    let asset_amount = _transfer_in(asset, vault_storage_);
+    let asset_amount = _transfer_in(asset);
     require(asset_amount > 0, Error::VaultInvalidAssetAmount);
 
     vault_utils.update_cumulative_funding_rate(asset, asset);
@@ -823,7 +815,6 @@ pub fn _buy_rusd(
     rusd_amount = vault_utils.adjust_for_decimals(rusd_amount, asset, rusd);
     require(rusd_amount > 0, Error::VaultInvalidRusdAmount);
 
-    // _get_buy_rusd_fee_basis_points
     let fee_basis_points = vault_utils.get_fee_basis_points(
         asset,
         rusd_amount,
@@ -888,9 +879,9 @@ pub fn _direct_pool_deposit(
         Error::VaultAssetNotWhitelisted
     );
 
-    let amount = _transfer_in(asset, vault_storage_).as_u256();
-    // @TODO: check this
+    let amount = _transfer_in(asset).as_u256();
     require(amount > 0, Error::VaultInvalidAssetAmount);
+
     vault_utils.increase_pool_amount(asset, amount);
 
     log(DirectPoolDeposit {
@@ -916,8 +907,7 @@ pub fn _withdraw_fees(
     _transfer_out(
         asset,
         u64::try_from(amount).unwrap(),
-        receiver,
-        vault_storage_
+        receiver
     );
 
     log(WithdrawFees {

@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "contracts/fungible",
+    "contracts/pricefeed",
     "contracts/core/vault-pricefeed",
 
     "contracts/core/vault-storage",

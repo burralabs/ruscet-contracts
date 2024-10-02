@@ -138,12 +138,14 @@ describe("Vault.depositCollateral", () => {
         await call(BTCPricefeed.functions.set_latest_answer(toPrice(41000)))
         await call(BTCPricefeed.functions.set_latest_answer(toPrice(40000)))
 
-        await transfer(BTC.as(user0), contrToAccount(vault), 117500 - 1) // 0.001174 BTC => 47
-
         await expect(
             vault
                 .connect(user0)
                 .functions.increase_position(addrToAccount(user0), toAsset(BTC), toAsset(BTC), toUsd(47), true)
+                .callParams({
+                    // 0.001174 BTC => 47
+                    forward: [117500 - 1, getAssetId(BTC)],
+                })
                 .addContracts(attachedContracts)
                 .call(),
         ).to.be.revertedWith("VaultReserveExceedsPool")
@@ -153,23 +155,42 @@ describe("Vault.depositCollateral", () => {
         expect(await getValStr(vaultUtils.functions.get_pool_amounts(toAsset(BTC)))).eq("0")
 
         expect(await getValStr(vaultUtils.functions.get_redemption_collateral_usd(toAsset(BTC)))).eq("0")
-        await call(vault.functions.buy_rusd(toAsset(BTC), addrToAccount(user1)).addContracts(attachedContracts))
+        await call(
+            vault
+                .as(user0)
+                .functions.buy_rusd(toAsset(BTC), addrToAccount(user1))
+                .addContracts(attachedContracts)
+                .callParams({
+                    // 0.001174 BTC => 47
+                    forward: [117500 - 1, getAssetId(BTC)],
+                }),
+        )
         expect(await getValStr(vaultUtils.functions.get_redemption_collateral_usd(toAsset(BTC)))).eq(toUsd("46.8584"))
 
         expect(await getValStr(vaultStorage.functions.get_fee_reserves(toAsset(BTC)))).eq("353") // (117500 - 1) * 0.3% => 353
         expect(await getValStr(vaultUtils.functions.get_rusd_amount(toAsset(BTC)))).eq("4685840000") // (117500 - 1 - 353) * 40000
         expect(await getValStr(vaultUtils.functions.get_pool_amounts(toAsset(BTC)))).eq(asStr(117500 - 1 - 353))
 
-        await transfer(BTC.as(user0), contrToAccount(vault), 117500 - 1)
         await expect(
             vault
                 .connect(user0)
                 .functions.increase_position(addrToAccount(user0), toAsset(BTC), toAsset(BTC), toUsd(100), true)
                 .addContracts(attachedContracts)
+                .callParams({
+                    forward: [117500 - 1, getAssetId(BTC)],
+                })
                 .call(),
         ).to.be.revertedWith("VaultReserveExceedsPool")
 
-        await call(vault.functions.buy_rusd(toAsset(BTC), addrToAccount(user1)).addContracts(attachedContracts))
+        await call(
+            vault
+                .as(user0)
+                .functions.buy_rusd(toAsset(BTC), addrToAccount(user1))
+                .addContracts(attachedContracts)
+                .callParams({
+                    forward: [117500 - 1, getAssetId(BTC)],
+                }),
+        )
 
         expect(await getValStr(vaultUtils.functions.get_redemption_collateral_usd(toAsset(BTC)))).eq(toUsd("93.7168"))
 
@@ -185,7 +206,6 @@ describe("Vault.depositCollateral", () => {
                 .call(),
         ).to.be.revertedWith("VaultInsufficientCollateralForFees")
 
-        await transfer(BTC.as(user0), contrToAccount(vault), 22500)
 
         expect(await getValStr(vaultUtils.functions.get_reserved_amounts(toAsset(BTC)))).eq("0")
         expect(await getValStr(vaultUtils.functions.get_guaranteed_usd(toAsset(BTC)))).eq("0")
@@ -203,6 +223,9 @@ describe("Vault.depositCollateral", () => {
             vault
                 .connect(user0)
                 .functions.increase_position(addrToAccount(user0), toAsset(BTC), toAsset(BTC), toUsd(47), true)
+                .callParams({
+                    forward: [22500, getAssetId(BTC)],
+                })
                 .addContracts(attachedContracts),
         )
 
@@ -230,12 +253,14 @@ describe("Vault.depositCollateral", () => {
 
         expect(leverage).eq("52496") // ~5.2x
 
-        await transfer(BTC.as(user0), contrToAccount(vault), 22500)
 
         await call(
             vault
                 .connect(user0)
                 .functions.increase_position(addrToAccount(user0), toAsset(BTC), toAsset(BTC), 0, true)
+                .callParams({
+                    forward: [22500, getAssetId(BTC)],
+                })
                 .addContracts(attachedContracts),
         )
 
@@ -262,12 +287,14 @@ describe("Vault.depositCollateral", () => {
         await call(BTCPricefeed.functions.set_latest_answer(toPrice(51000)))
         await call(BTCPricefeed.functions.set_latest_answer(toPrice(50000)))
 
-        await transfer(BTC.as(user0), contrToAccount(vault), 100)
         await call(
             vault
                 .connect(user0)
                 .functions.increase_position(addrToAccount(user0), toAsset(BTC), toAsset(BTC), 0, true)
-                .addContracts(attachedContracts),
+                .addContracts(attachedContracts)
+                .callParams({
+                    forward: [100, getAssetId(BTC)],
+                }),
         )
 
         position = formatObj(

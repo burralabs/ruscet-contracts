@@ -135,17 +135,28 @@ describe("Vault.fundingRates", function () {
         await call(BTCPricefeed.functions.set_latest_answer(toPrice(41000)))
         await call(BTCPricefeed.functions.set_latest_answer(toPrice(40000)))
 
-        await call(BTC.functions.mint(addrToAccount(user1), expandDecimals(1, 8)))
-        await transfer(BTC.as(user1), contrToAccount(vault), 250000) // 0.0025 BTC => 100 USD
-        await call(vault.functions.buy_rusd(toAsset(BTC), addrToAccount(user1)).addContracts(attachedContracts))
+        await call(BTC.functions.mint(addrToAccount(user1), expandDecimals(1)))
+        await call(
+            vault
+                .as(user1)
+                .functions.buy_rusd(toAsset(BTC), addrToAccount(user1))
+                .addContracts(attachedContracts)
+                .callParams({
+                    // 0.0025 BTC => 100 USD
+                    forward: [250000, getAssetId(BTC)],
+                }),
+        )
 
-        await call(BTC.functions.mint(addrToAccount(user0), expandDecimals(1, 8)))
-        await transfer(BTC.as(user1), contrToAccount(vault), 25000) // 0.00025 BTC => 10 USD
+        await call(BTC.functions.mint(addrToAccount(user0), expandDecimals(1)))
         await expect(
             vault
                 .connect(user0)
                 .functions.increase_position(addrToAccount(user0), toAsset(BTC), toAsset(BTC), toUsd(110), true)
                 .addContracts(attachedContracts)
+                .callParams({
+                    // 0.00025 BTC => 10 USD
+                    forward: [25000, getAssetId(BTC)],
+                })
                 .call(),
         ).to.be.revertedWith("VaultReserveExceedsPool")
 
@@ -153,7 +164,11 @@ describe("Vault.fundingRates", function () {
             vault
                 .connect(user0)
                 .functions.increase_position(addrToAccount(user0), toAsset(BTC), toAsset(BTC), toUsd(90), true)
-                .addContracts(attachedContracts),
+                .addContracts(attachedContracts)
+                .callParams({
+                    // 0.00025 BTC => 10 USD
+                    forward: [25000, getAssetId(BTC)],
+                }),
         )
 
         let position = formatObj(

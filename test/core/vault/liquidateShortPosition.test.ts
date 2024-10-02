@@ -165,14 +165,23 @@ describe("Vault.liquidateShortPosition", function () {
         expect(await getValStr(vaultStorage.functions.get_global_short_average_prices(toAsset(BTC)))).eq("0")
 
         await call(DAI.functions.mint(addrToAccount(user0), expandDecimals(1000)))
-        await transfer(DAI.as(user0), contrToAccount(vault), expandDecimals(100))
-        await call(vault.functions.buy_rusd(toAsset(DAI), addrToAccount(user1)).addContracts(attachedContracts))
+        await call(
+            vault
+                .as(user0)
+                .functions.buy_rusd(toAsset(DAI), addrToAccount(user1))
+                .addContracts(attachedContracts)
+                .callParams({
+                    forward: [expandDecimals(100), getAssetId(DAI)],
+                }),
+        )
 
-        await transfer(DAI.as(user0), contrToAccount(vault), expandDecimals(10))
         await call(
             vault
                 .connect(user0)
                 .functions.increase_position(addrToAccount(user0), toAsset(DAI), toAsset(BTC), toUsd(90), false)
+                .callParams({
+                    forward: [expandDecimals(10), getAssetId(DAI)],
+                })
                 .addContracts(attachedContracts),
         )
         let position = formatObj(
@@ -293,11 +302,13 @@ describe("Vault.liquidateShortPosition", function () {
         await call(BTCPricefeed.functions.set_latest_answer(toPrice(50000)))
         await call(BTCPricefeed.functions.set_latest_answer(toPrice(50000)))
 
-        await transfer(DAI.as(user0), contrToAccount(vault), expandDecimals(20))
         await call(
             vault
                 .connect(user0)
                 .functions.increase_position(addrToAccount(user0), toAsset(DAI), toAsset(BTC), toUsd(100), false)
+                .callParams({
+                    forward: [expandDecimals(20), getAssetId(DAI)],
+                })
                 .addContracts(attachedContracts),
         )
 
@@ -358,16 +369,25 @@ describe("Vault.liquidateShortPosition", function () {
         expect(await getValStr(vaultStorage.functions.get_global_short_average_prices(toAsset(BTC)))).eq("0")
 
         await call(DAI.functions.mint(addrToAccount(user0), expandDecimals(1001)))
-        await transfer(DAI.as(user0), contrToAccount(vault), expandDecimals(1001))
-        await call(vault.functions.buy_rusd(toAsset(DAI), addrToAccount(user1)).addContracts(attachedContracts))
+        await call(
+            vault
+                .as(user0)
+                .functions.buy_rusd(toAsset(DAI), addrToAccount(user1))
+                .addContracts(attachedContracts)
+                .callParams({
+                    forward: [expandDecimals(1001), getAssetId(DAI)],
+                }),
+        )
 
         await call(DAI.functions.mint(addrToAccount(user0), expandDecimals(100)))
-        await transfer(DAI.as(user0), contrToAccount(vault), expandDecimals(100))
         await call(
             vault
                 .connect(user0)
                 .functions.increase_position(addrToAccount(user0), toAsset(DAI), toAsset(BTC), toUsd(1000), false)
-                .addContracts(attachedContracts),
+                .addContracts(attachedContracts)
+                .callParams({
+                    forward: [expandDecimals(100), getAssetId(DAI)],
+                }),
         )
 
         let position = formatObj(
@@ -518,11 +538,13 @@ describe("Vault.liquidateShortPosition", function () {
         await call(BTCPricefeed.functions.set_latest_answer(toPrice(50000)))
 
         await call(DAI.functions.mint(addrToAccount(user0), expandDecimals(20)))
-        await transfer(DAI.as(user0), contrToAccount(vault), expandDecimals(20))
         await call(
             vault
                 .connect(user0)
                 .functions.increase_position(addrToAccount(user0), toAsset(DAI), toAsset(BTC), toUsd(100), false)
+                .callParams({
+                    forward: [expandDecimals(20), getAssetId(DAI)],
+                })
                 .addContracts(attachedContracts),
         )
 
@@ -583,16 +605,25 @@ describe("Vault.liquidateShortPosition", function () {
         expect(await getValStr(vaultStorage.functions.get_global_short_average_prices(toAsset(BTC)))).eq("0")
 
         await call(DAI.functions.mint(addrToAccount(user0), expandDecimals(1001)))
-        await transfer(DAI.as(user0), contrToAccount(vault), expandDecimals(1001))
-        await call(vault.functions.buy_rusd(toAsset(DAI), addrToAccount(user1)).addContracts(attachedContracts))
-
-        await call(DAI.functions.mint(addrToAccount(user0), expandDecimals(100)))
-        await transfer(DAI.as(user0), contrToAccount(vault), expandDecimals(100))
         await call(
             vault
-                .connect(user0)
+                .as(user0)
+                .functions.buy_rusd(toAsset(DAI), addrToAccount(user1))
+                .addContracts(attachedContracts)
+                .callParams({
+                    forward: [expandDecimals(1001), getAssetId(DAI)],
+                }),
+        )
+
+        await call(DAI.functions.mint(addrToAccount(user0), expandDecimals(100)))
+        await call(
+            vault
+                .as(user0)
                 .functions.increase_position(addrToAccount(user0), toAsset(DAI), toAsset(BTC), toUsd(1000), false)
-                .addContracts(attachedContracts),
+                .addContracts(attachedContracts)
+                .callParams({
+                    forward: [expandDecimals(100), getAssetId(DAI)],
+                }),
         )
 
         let position = formatObj(
@@ -724,11 +755,13 @@ describe("Vault.liquidateShortPosition", function () {
         await call(BTCPricefeed.functions.set_latest_answer(toPrice(50000)))
 
         await call(DAI.functions.mint(addrToAccount(user0), expandDecimals(20)))
-        await transfer(DAI.as(user0), contrToAccount(vault), expandDecimals(20))
         await call(
             vault
-                .connect(user0)
+                .as(user0)
                 .functions.increase_position(addrToAccount(user0), toAsset(DAI), toAsset(BTC), toUsd(100), false)
+                .callParams({
+                    forward: [expandDecimals(20), getAssetId(DAI)],
+                })
                 .addContracts(attachedContracts),
         )
 

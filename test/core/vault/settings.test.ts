@@ -137,10 +137,17 @@ describe("Vault.settings", function () {
         ).to.be.revertedWith("VaultInvalidAssetAmount")
 
         await call(BNB.functions.mint(addrToAccount(user0), 1000))
-        await transfer(BNB.as(user0), contrToAccount(vault), 1000)
 
         expect(await getValStr(vaultUtils.functions.get_pool_amounts(toAsset(BNB)))).eq("0")
-        await call(vault.connect(user0).functions.direct_pool_deposit(toAsset(BNB)).addContracts(attachedContracts))
+        await call(
+            vault
+                .connect(user0)
+                .functions.direct_pool_deposit(toAsset(BNB))
+                .addContracts(attachedContracts)
+                .callParams({
+                    forward: [1000, getAssetId(BNB)],
+                }),
+        )
         expect(await getValStr(vaultUtils.functions.get_pool_amounts(toAsset(BNB)))).eq("1000")
 
         await validateVaultBalance(expect, vault, vaultStorage, vaultUtils, BNB)

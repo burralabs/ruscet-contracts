@@ -310,6 +310,10 @@ fn _burn(
 
     _update_rewards(account, staked_balance);
 
+    let account_balance = storage.balances.get(account).try_read().unwrap_or(0);
+    require(account_balance >= amount, Error::YieldAssetBurnAmountExceedsBalance);
+
+    storage.balances.get(account).write(account_balance - amount);
     storage.total_supply.write(storage.total_supply.read() - amount);
 
     burn(ZERO, amount);

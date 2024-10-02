@@ -99,8 +99,6 @@ storage {
     // allows setting a max amount of RUSD debt for an asset
     max_rusd_amounts: StorageMap<AssetId, u256> = StorageMap::<AssetId, u256> {},
 
-    // used only to determine _transfer_in values
-    asset_balances: StorageMap<AssetId, u64> = StorageMap::<AssetId, u64> {},
     // allows specification of an amount to exclude from swaps
     // can be used to ensure a certain amount of liquidity is available for leverage positions
     buffer_amounts: StorageMap<AssetId, u256> = StorageMap::<AssetId, u256> {},
@@ -537,7 +535,9 @@ impl VaultStorage for Contract {
 
     #[storage(read)]
     fn get_asset_balance(asset: AssetId) -> u64 {
-        storage.asset_balances.get(asset).try_read().unwrap_or(0)
+        // this is not used at all. Removing this breaks compiler inlining however, so this 
+        // remains until a more stable compiler is available
+        0
     }
 
     #[storage(read)]
@@ -580,14 +580,6 @@ impl VaultStorage for Contract {
     #[storage(write)]
     fn set_router(router: Account, is_active: bool) {
         storage.approved_routers.get(get_sender()).insert(router, is_active);
-    }
-
-    #[storage(write)]
-    fn write_asset_balance(asset: AssetId, balance: u64) {
-        _only_write_authorized();
-
-        storage.asset_balances.insert(asset, balance);
-        log(WriteAssetBalance { asset, balance });
     }
 
     #[storage(write)]
