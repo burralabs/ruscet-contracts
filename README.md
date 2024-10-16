@@ -1,39 +1,16 @@
 # Ruscet Protocol Contracts
 
-The contracts that power the Ruscet Protocol, the high-performance derivatives exchange built on the Fuel network with contracts written in the Sway language.
+The contracts that power v1 of the Ruscet Protocol, the high-performance derivatives exchange built on the Fuel network with contracts written in the Sway language.
 
-## Contracts in scope
+## Audits
 
-Any contract that is not mentioned below is not in scope and used purely during tests
-
-```bash
-contracts/assets
-    - time-distributor
-    - yield-asset
-    - yield-tracker
-    - rusd
-    - rlp
-
-contracts/core
-    - vault-pricefeed
-    - vault-storage
-    - vault-utils
-    - vault
-
-contracts/helpers
-    - *
-
-contracts/pricefeed
-    - *
-```
+Ruscet v1 has been thorougly audited by [Linum Labs](https://www.linumlabs.com/). The audit report can be found [here](https://github.com/burralabs/ruscet-contracts/tree/dev/audits).
 
 ## Testing
 
 ```bash
-# installs patches too
 pnpm i
 
-# For processing types
 pip install caer
 
 # Build + Generate Types
