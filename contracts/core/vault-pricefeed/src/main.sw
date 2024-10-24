@@ -48,19 +48,19 @@ storage {
 
     secondary_pricefeed: ContractId = ZERO_CONTRACT,
 
-    pricefeeds: StorageMap<AssetId, ContractId> = StorageMap::<AssetId, ContractId> {},
-    price_decimals: StorageMap<AssetId, u8> = StorageMap::<AssetId, u8> {},
-    spread_basis_points: StorageMap<AssetId, u64> = StorageMap::<AssetId, u64> {},
+    pricefeeds: StorageMap<AssetId, ContractId> = StorageMap {},
+    price_decimals: StorageMap<AssetId, u8> = StorageMap {},
+    spread_basis_points: StorageMap<AssetId, u64> = StorageMap {},
     // Chainlink can return prices for stablecoins
     // that differs from 1 USD by a larger percentage than stableSwapFeeBasisPoints
     // we use strictStableTokens to cap the price to 1 USD
     // this allows us to configure stablecoins like DAI as being a stableToken
     // while not being a strictStableToken
-    strict_stable_assets: StorageMap<AssetId, bool> = StorageMap::<AssetId, bool> {},
+    strict_stable_assets: StorageMap<AssetId, bool> = StorageMap {},
 
-    adjustment_basis_points: StorageMap<AssetId, u64> = StorageMap::<AssetId, u64> {},
-    is_adjustment_additive: StorageMap<AssetId, bool> = StorageMap::<AssetId, bool> {},
-    last_adjustment_timings: StorageMap<AssetId, u64> = StorageMap::<AssetId, u64> {},
+    adjustment_basis_points: StorageMap<AssetId, u64> = StorageMap {},
+    is_adjustment_additive: StorageMap<AssetId, bool> = StorageMap {},
+    last_adjustment_timings: StorageMap<AssetId, u64> = StorageMap {},
 }
 
 impl VaultPricefeed for Contract {
@@ -201,6 +201,7 @@ impl VaultPricefeed for Contract {
 
         let adjustment_bps = storage.adjustment_basis_points.get(asset)
             .try_read().unwrap_or(0).as_u256();
+            
         if adjustment_bps > 0 {
             let is_additive = storage.is_adjustment_additive.get(asset).try_read().unwrap_or(false);
 

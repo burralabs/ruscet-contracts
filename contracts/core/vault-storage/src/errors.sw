@@ -7,21 +7,11 @@ pub enum Error {
     
     VaultStorageAlreadyInitialized: (),
     VaultStorageInvalidRUSDAsset: (),
-    VaultStorageZeroAsset: (),
-
-    VaultStorageMaxRusdExceeded: (),
-    
-    VaultStorageInvalidTaxBasisPoints: (),
-    VaultStorageInvalidStableTaxBasisPoints: (),
-    VaultStorageInvalidMintBurnFeeBasisPoints: (),
-    VaultStorageInvalidSwapFeeBasisPoints: (),
-    VaultStorageInvalidStableSwapFeeBasisPoints: (),
-    VaultStorageInvalidMarginFeeBasisPoints: (),
-    VaultStorageInvalidLiquidationFeeUsd: (),
-
-    VaultStorageInvalidFundingRateFactor: (),
-    VaultStorageInvalidStableFundingRateFactor: (),
 
     VaultStorageAssetNotWhitelisted: (),
-    VaultStoragePricefeedZero: (),
+    VaultStorageInvalidLiquidationFeeUsd: (),
+    VaultStorageInvalidFeeBasisPoints: (),
+
+    VaultStorageDecimalsAreZero: (),
+    VaultStoragePriceQueriedIsZero: (),
 }

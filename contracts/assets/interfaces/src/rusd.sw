@@ -3,6 +3,7 @@ library;
 
 use std::{
     string::String,
+    b512::B512
 };
 
 use helpers::{
@@ -11,7 +12,10 @@ use helpers::{
 
 abi RUSD {
     #[storage(read, write)]
-    fn initialize(vault: ContractId);
+    fn initialize(
+        vault_router: ContractId,
+        staked_balance_handler: Address
+    );
 
     /*
           ____     _       _           _       
@@ -24,6 +28,9 @@ abi RUSD {
     fn set_gov(new_gov: Account);
 
     #[storage(read, write)]
+    fn set_staked_balance_handler(staked_balance_handler: Address);
+
+    #[storage(read, write)]
     fn set_yield_trackers(yield_trackers: Vec<ContractId>);
 
     #[storage(read, write)]
@@ -33,35 +40,29 @@ abi RUSD {
     fn remove_admin(account: Account);
 
     #[storage(read, write)]
-    fn add_vault(vault: ContractId);
+    fn add_vault(vault_router: ContractId);
 
     #[storage(read, write)]
-    fn remove_vault(vault: ContractId);
+    fn remove_vault(vault_router: ContractId);
 
     #[storage(read, write)]
-    fn set_in_whitelist_mode(in_whitelist_mode: bool);
+    fn add_nonstaking_account(account: Account);
 
     #[storage(read, write)]
-    fn set_whitelisted_handler(handler: Account, is_whitelisted: bool);
-
-    #[storage(read, write)]
-    fn add_nonstaking_account(account: Account, staked_balance: u256);
-
-    #[storage(read, write)]
-    fn remove_nonstaking_account(account: Account, staked_balance: u256);
+    fn remove_nonstaking_account(account: Account);
 
     #[storage(read)]
-    fn recover_claim(account: Account, receiver: Account, staked_balance: u256);
+    fn recover_claim(account: Account, receiver: Account);
 
     #[storage(read)]
-    fn claim(receiver: Account, staked_balance: u256);
+    fn claim(receiver: Account);
 
     #[storage(read, write)]
-    fn mint(account: Account, amount: u64, staked_balance: u256);
+    fn mint(account: Account, amount: u64);
 
     #[payable]
     #[storage(read, write)]
-    fn burn(account: Account, amount: u64, staked_balance: u256);
+    fn burn(account: Account, amount: u64);
 
     /*
           ____ __     ___               
@@ -86,4 +87,18 @@ abi RUSD {
     
     #[storage(read)]
     fn total_staked() -> u64;
+
+    /*
+          ____  ____        _     _ _      
+         / / / |  _ \ _   _| |__ | (_) ___ 
+        / / /  | |_) | | | | '_ \| | |/ __|
+       / / /   |  __/| |_| | |_) | | | (__ 
+      /_/_/    |_|    \__,_|_.__/|_|_|\___|
+    */
+    #[storage(read, write)]
+    fn set_user_staked_balance(
+        account: Account,
+        amount: u64,
+        signature: B512
+    );
 }

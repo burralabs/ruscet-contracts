@@ -30,7 +30,7 @@ storage {
     round_id: u64 = 0,
     description: StorageString = StorageString {},
     gov: Account = ZERO_ACCOUNT,
-    answers: StorageMap<u64, u256> = StorageMap::<u64, u256> {}
+    answers: StorageMap<u64, u256> = StorageMap {}
 }
 
 impl Pricefeed for Contract {
@@ -76,7 +76,7 @@ impl Pricefeed for Contract {
 
     #[storage(read, write)]
     fn set_latest_answer(new_answer: u256) {
-        // require(get_sender() == storage.gov.read(), Error::PricefeedForbidden);
+        require(get_sender() == storage.gov.read(), Error::PricefeedForbidden);
 
         let round_id = storage.round_id.read();
 

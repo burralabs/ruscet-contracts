@@ -11,6 +11,7 @@ use std::{
 use std::hash::*;
 use core_interfaces::{
     vault_utils::VaultUtils,
+    vault::Vault,
     vault_storage::{
         VaultStorage,
         Position,
@@ -35,18 +36,20 @@ pub fn _increase_position(
     index_asset: AssetId, 
     size_delta: u256,
     is_long: bool,
+    tx_sender: Account,
     vault_storage_: ContractId,
-    vault_utils_: ContractId
+    vault_utils_: ContractId,
+    vault_: ContractId
 ) {
     require(
         account.non_zero(),
-        Error::VaultAccountCannotBeZero
+        Error::VaultRouterAccountCannotBeZero
     );
 
     let vault_storage = abi(VaultStorage, vault_storage_.into());
     let vault_utils = abi(VaultUtils, vault_utils_.into());
 
-    _validate_router(account, vault_storage_);
+    _validate_router(account, vault_storage_, tx_sender);
     _validate_assets(collateral_asset, index_asset, is_long, vault_storage_);
 
     vault_utils.update_cumulative_funding_rate(collateral_asset, index_asset);
@@ -104,14 +107,14 @@ pub fn _increase_position(
         vault_utils_
     );
 
-    let collateral_delta = _transfer_in(collateral_asset).as_u256();
-    let collateral_delta_usd = vault_utils.asset_to_usd_min(collateral_asset, collateral_delta);
+    let collateral_delta = _transfer_in(collateral_asset, vault_).as_u256();
+    let collateral_delta_usd = vault_storage.asset_to_usd_min(collateral_asset, collateral_delta);
 
     position.collateral = position.collateral + collateral_delta_usd;
 
     require(
         position.collateral >= fee,
-        Error::VaultInsufficientCollateralForFees
+        Error::VaultRouterInsufficientCollateralForFees
     );
     position.collateral = position.collateral - fee;
     position.entry_funding_rate = vault_utils.get_entry_funding_rate(
@@ -124,7 +127,7 @@ pub fn _increase_position(
 
     require(
         position.size > 0,
-        Error::VaultInvalidPositionSize
+        Error::VaultRouterInvalidPositionSize
     );
 
     _validate_position(position.size, position.collateral);
@@ -140,7 +143,7 @@ pub fn _increase_position(
     );
 
     // reserve assets to pay profits on the position
-    let reserve_delta = vault_utils.usd_to_asset_max(collateral_asset, size_delta);
+    let reserve_delta = vault_storage.usd_to_asset_max(collateral_asset, size_delta);
     position.reserve_amount = position.reserve_amount + reserve_delta;
     vault_utils.increase_reserved_amount(collateral_asset, reserve_delta);
 
@@ -158,7 +161,7 @@ pub fn _increase_position(
         // and collateral is treated as part of the pool
         vault_utils.decrease_pool_amount(
             collateral_asset, 
-            vault_utils.usd_to_asset_min(collateral_asset, fee)
+            vault_storage.usd_to_asset_min(collateral_asset, fee)
         );
     } else {
         let global_short_size = vault_utils.get_global_short_sizes(index_asset);
@@ -214,16 +217,18 @@ pub fn _decrease_position(
     is_long: bool,
     receiver: Account,
     should_validate_router: bool,
+    tx_sender: Account,
     vault_storage_: ContractId,
     vault_utils_: ContractId,
+    vault_: ContractId
 ) -> u256 {
     require(
         account.non_zero(),
-        Error::VaultAccountCannotBeZero
+        Error::VaultRouterAccountCannotBeZero
     );
 
     if should_validate_router {
-        _validate_router(account, vault_storage_);
+        _validate_router(account, vault_storage_, tx_sender);
     }
 
     let vault_storage = abi(VaultStorage, vault_storage_.into());
@@ -238,7 +243,7 @@ pub fn _decrease_position(
         is_long
     );
     let mut position = vault_storage.get_position_by_key(position_key);
-    require(position.size > 0, Error::VaultEmptyPosition);
+    require(position.size > 0, Error::VaultRouterEmptyPosition);
     require(position.size >= size_delta, Error::VaultPositionSizeExceeded);
     require(position.collateral >= collateral_delta, Error::VaultPositionCollateralExceeded);
 
@@ -352,22 +357,25 @@ pub fn _decrease_position(
         position = vault_storage.get_position_by_key(position_key);
     }
 
-    if !is_long {
+    let is_short = !is_long;
+
+    if is_short {
         vault_utils.decrease_global_short_size(index_asset, size_delta);
     }
 
     if usd_out > 0 {
         if is_long {
-            vault_utils.decrease_pool_amount(collateral_asset, vault_utils.usd_to_asset_min(collateral_asset, usd_out));
+            vault_utils.decrease_pool_amount(collateral_asset, vault_storage.usd_to_asset_min(collateral_asset, usd_out));
         }
 
-        let amount_out_after_fees = vault_utils.usd_to_asset_min(collateral_asset, usd_out_after_fee);
+        let amount_out_after_fees = vault_storage.usd_to_asset_min(collateral_asset, usd_out_after_fee);
  
         // @TODO: potential revert here
         _transfer_out(
             collateral_asset, 
             u64::try_from(amount_out_after_fees).unwrap(), 
-            receiver
+            receiver,
+            vault_
         );
         
         vault_storage.write_position(position_key, position);
@@ -421,6 +429,8 @@ pub fn _reduce_collateral(
 
     let adjusted_delta = size_delta * delta / position.size;
 
+    let is_short = !is_long;
+
     // transfer profits out
     let mut usd_out = 0;
     if adjusted_delta > 0 {
@@ -429,8 +439,8 @@ pub fn _reduce_collateral(
             position.realized_pnl = position.realized_pnl + Signed256::from(adjusted_delta);
 
             // pay out realized profits from the pool amount for short positions
-            if !is_long {
-                let token_amount = vault_utils.usd_to_asset_min(collateral_asset, adjusted_delta);
+            if is_short {
+                let token_amount = vault_storage.usd_to_asset_min(collateral_asset, adjusted_delta);
                 vault_utils.decrease_pool_amount(collateral_asset, token_amount);
             }
         } else {
@@ -439,8 +449,8 @@ pub fn _reduce_collateral(
             // transfer realized losses to the pool for short positions
             // realized losses for long positions are not transferred here as
             // _increasePoolAmount was already called in increasePosition for longs
-            if !is_long {
-                let token_amount = vault_utils.usd_to_asset_min(collateral_asset, adjusted_delta);
+            if is_short {
+                let token_amount = vault_storage.usd_to_asset_min(collateral_asset, adjusted_delta);
                 vault_utils.increase_pool_amount(collateral_asset, token_amount);
             }
 
@@ -472,7 +482,7 @@ pub fn _reduce_collateral(
         // an ArithmeticOverflow
         position.collateral = position.collateral - fee;
         if is_long {
-            let fee_assets = vault_utils.usd_to_asset_min(collateral_asset, fee);
+            let fee_assets = vault_storage.usd_to_asset_min(collateral_asset, fee);
             vault_utils.decrease_pool_amount(collateral_asset, fee_assets);
         }
     }
@@ -493,20 +503,22 @@ pub fn _liquidate_position(
     index_asset: AssetId,
     is_long: bool,
     fee_receiver: Account,
+    tx_sender: Account,
     vault_storage_: ContractId,
     vault_utils_: ContractId,
+    vault_: ContractId
 ) {
     require(
         account.non_zero(),
-        Error::VaultAccountCannotBeZero
+        Error::VaultRouterAccountCannotBeZero
     );
 
     let vault_storage = abi(VaultStorage, vault_storage_.into());
     let vault_utils = abi(VaultUtils, vault_utils_.into());
 
     require(
-        vault_storage.is_liquidator(get_sender()),
-        Error::VaultInvalidLiquidator
+        vault_storage.is_liquidator(tx_sender),
+        Error::VaultRouterInvalidLiquidator
     );
 
     vault_utils.update_cumulative_funding_rate(collateral_asset, index_asset);
@@ -519,7 +531,7 @@ pub fn _liquidate_position(
     );
 
     let position = vault_storage.get_position_by_key(position_key);
-    require(position.size > 0, Error::VaultEmptyPosition);
+    require(position.size > 0, Error::VaultRouterEmptyPosition);
 
     let liquidation_fee_usd = vault_storage.get_liquidation_fee_usd();
 
@@ -547,13 +559,15 @@ pub fn _liquidate_position(
             is_long,
             account,
             false,
+            tx_sender,
             vault_storage_,
-            vault_utils_
+            vault_utils_,
+            vault_
         );
         return;
     }
 
-    let fee_assets = vault_utils.usd_to_asset_min(collateral_asset, margin_fees);
+    let fee_assets = vault_storage.usd_to_asset_min(collateral_asset, margin_fees);
     vault_storage.write_fee_reserve(
         collateral_asset,
         vault_storage.get_fee_reserves(collateral_asset) + fee_assets
@@ -568,7 +582,7 @@ pub fn _liquidate_position(
 
     if is_long {
         vault_utils.decrease_guaranteed_usd(collateral_asset, position.size - position.collateral);
-        vault_utils.decrease_pool_amount(collateral_asset, vault_utils.usd_to_asset_min(collateral_asset, margin_fees));
+        vault_utils.decrease_pool_amount(collateral_asset, vault_storage.usd_to_asset_min(collateral_asset, margin_fees));
     }
 
     let mark_price = if is_long {
@@ -590,15 +604,17 @@ pub fn _liquidate_position(
         mark_price,
     });
 
-    if !is_long && margin_fees < position.collateral {
+    let is_short = !is_long;
+
+    if is_short && margin_fees < position.collateral {
         let remaining_collateral = position.collateral - margin_fees;
         vault_utils.increase_pool_amount(
             collateral_asset, 
-            vault_utils.usd_to_asset_min(collateral_asset, remaining_collateral)
+            vault_storage.usd_to_asset_min(collateral_asset, remaining_collateral)
         );
     }
 
-    if !is_long {
+    if is_short {
         vault_utils.decrease_global_short_size(index_asset, position.size);
     }
 
@@ -608,311 +624,13 @@ pub fn _liquidate_position(
     // the liquidation fees
     vault_utils.decrease_pool_amount(
         collateral_asset, 
-        vault_utils.usd_to_asset_min(collateral_asset, liquidation_fee_usd)
+        vault_storage.usd_to_asset_min(collateral_asset, liquidation_fee_usd)
     );
     _transfer_out(
         collateral_asset, 
         // @TODO: potential revert here
-        u64::try_from(vault_utils.usd_to_asset_min(collateral_asset, liquidation_fee_usd)).unwrap(),
-        fee_receiver
+        u64::try_from(vault_storage.usd_to_asset_min(collateral_asset, liquidation_fee_usd)).unwrap(),
+        fee_receiver,
+        vault_
     );
-}
-
-pub fn _swap(
-    asset_in: AssetId,
-    asset_out: AssetId,
-    receiver: Account,
-    vault_storage_: ContractId,
-    vault_utils_: ContractId
-) -> u64 {
-    require(
-        receiver.non_zero(),
-        Error::VaultReceiverCannotBeZero
-    );
-
-    let vault_storage = abi(VaultStorage, vault_storage_.into());
-    let vault_utils = abi(VaultUtils, vault_utils_.into());
-
-    require(
-        vault_storage.is_asset_whitelisted(asset_in),
-        Error::VaultAssetInNotWhitelisted
-    );
-    require(
-        vault_storage.is_asset_whitelisted(asset_out),
-        Error::VaultAssetOutNotWhitelisted
-    );
-    require(asset_in != asset_out, Error::VaultAssetsAreEqual);
-
-    vault_utils.update_cumulative_funding_rate(asset_in, asset_in);
-    vault_utils.update_cumulative_funding_rate(asset_out, asset_out);
-
-    let amount_in = _transfer_in(asset_in).as_u256();
-    require(amount_in > 0, Error::VaultInvalidAmountIn);
-
-    let price_in = vault_utils.get_min_price(asset_in);
-    let price_out = vault_utils.get_max_price(asset_out);
-
-    let mut amount_out = amount_in * price_in / price_out;
-    amount_out = vault_utils.adjust_for_decimals(amount_out, asset_in, asset_out);
-
-    // adjust rusdAmounts by the same rusdAmount as debt is shifted between the assets
-    let mut rusd_amount = amount_in * price_in / PRICE_PRECISION;
-    let rusd = vault_storage.get_rusd();
-    rusd_amount = vault_utils.adjust_for_decimals(rusd_amount, asset_in, rusd);
-
-    let fee_basis_points = _get_swap_fee_basis_points(
-        asset_in, 
-        asset_out, 
-        rusd_amount,
-        vault_storage_,
-        vault_utils_
-    );
-
-    let amount_out_after_fees = _collect_swap_fees(
-        asset_out, 
-        u64::try_from(amount_out).unwrap(),
-        u64::try_from(fee_basis_points).unwrap(),
-        vault_storage_,
-        vault_utils_
-    );
-
-    vault_utils.increase_rusd_amount(asset_in, rusd_amount);
-    vault_utils.decrease_rusd_amount(asset_out, rusd_amount);
-
-    vault_utils.increase_pool_amount(asset_in, amount_in);
-    vault_utils.decrease_pool_amount(asset_out, amount_out);
-
-    _validate_buffer_amount(asset_out, vault_storage_, vault_utils_);
-
-    _transfer_out(asset_out, amount_out_after_fees, receiver);
-
-    log(Swap {
-        account: receiver,
-        asset_in,
-        asset_out,
-        amount_in,
-        amount_out,
-        amount_out_after_fees: amount_out_after_fees.as_u256(),
-        fee_basis_points,
-    });
-
-    amount_out_after_fees
-}
-
-pub fn _sell_rusd(
-    asset: AssetId, 
-    receiver: Account,
-    vault_storage_: ContractId,
-    vault_utils_: ContractId
-) -> u256 {
-    require(
-        receiver.non_zero(),
-        Error::VaultReceiverCannotBeZero
-    );
-
-    let vault_storage = abi(VaultStorage, vault_storage_.into());
-    let vault_utils = abi(VaultUtils, vault_utils_.into());
-
-    require(
-        vault_storage.is_asset_whitelisted(asset),
-        Error::VaultAssetNotWhitelisted
-    );
-
-    let rusd = vault_storage.get_rusd();
-
-    let rusd_amount = _transfer_in(rusd).as_u256();
-    require(rusd_amount > 0, Error::VaultInvalidRusdAmount);
-
-    vault_utils.update_cumulative_funding_rate(asset, asset);
-
-    let redemption_amount = vault_utils.get_redemption_amount(asset, rusd_amount);
-    require(redemption_amount > 0, Error::VaultInvalidRedemptionAmount);
-
-    vault_utils.decrease_rusd_amount(asset, rusd_amount);
-    vault_utils.decrease_pool_amount(asset, redemption_amount);
-
-    // require rusd_amount to be less than u64::max
-    require(
-        rusd_amount < u64::max().as_u256(),
-        Error::VaultInvalidRUSDBurnAmountGtU64Max
-    );
-
-    let _amount = u64::try_from(rusd_amount).unwrap();
-
-    let rusd_contr = abi(RUSD, vault_storage.get_rusd_contr().into());
-    rusd_contr.burn{
-        asset_id: rusd.into(),
-        coins: _amount
-    }(
-        Account::from(ContractId::this()),
-        _amount,
-        // this will actually lead to the incorrect reward calculation in RUSD->YieldTracker.update_rewards(),
-        // but there is no actual way to query the staked balance of the receiver in the Vault
-        0
-    );
-
-    // update asset balance
-    let _next_balance = balance_of(ContractId::this(), asset);
-
-    let fee_basis_points = vault_utils.get_fee_basis_points(
-        asset,
-        rusd_amount,
-        vault_storage.get_mint_burn_fee_basis_points().as_u256(),
-        vault_storage.get_tax_basis_points().as_u256(),
-        false
-    );
-    
-    let amount_out = _collect_swap_fees(
-        asset, 
-        u64::try_from(redemption_amount).unwrap(), 
-        u64::try_from(fee_basis_points).unwrap(), 
-        vault_storage_,
-        vault_utils_,
-    );
-    require(amount_out > 0, Error::VaultInvalidAmountOut);
-
-    _transfer_out(asset, amount_out, receiver);
-
-    log(SellRUSD {
-        account: receiver,
-        asset,
-        rusd_amount,
-        asset_amount: amount_out,
-        fee_basis_points,
-    });
-
-    amount_out.as_u256()
-}
-
-pub fn _buy_rusd(
-    asset: AssetId, 
-    receiver: Account,
-    vault_storage_: ContractId,
-    vault_utils_: ContractId
-) -> u256 {
-    require(
-        receiver.non_zero(),
-        Error::VaultReceiverCannotBeZero
-    );
-
-    let vault_storage = abi(VaultStorage, vault_storage_.into());
-    let vault_utils = abi(VaultUtils, vault_utils_.into());
-
-    require(
-        vault_storage.is_asset_whitelisted(asset),
-        Error::VaultAssetNotWhitelisted
-    );
-
-    let asset_amount = _transfer_in(asset);
-    require(asset_amount > 0, Error::VaultInvalidAssetAmount);
-
-    vault_utils.update_cumulative_funding_rate(asset, asset);
-
-    let price = vault_utils.get_min_price(asset);
-    let rusd = vault_storage.get_rusd();
-
-    let mut rusd_amount = asset_amount.as_u256() * price / PRICE_PRECISION;
-    rusd_amount = vault_utils.adjust_for_decimals(rusd_amount, asset, rusd);
-    require(rusd_amount > 0, Error::VaultInvalidRusdAmount);
-
-    let fee_basis_points = vault_utils.get_fee_basis_points(
-        asset,
-        rusd_amount,
-        vault_storage.get_mint_burn_fee_basis_points().as_u256(),
-        vault_storage.get_tax_basis_points().as_u256(),
-        true
-    );
-
-    let amount_after_fees = _collect_swap_fees(
-        asset, 
-        asset_amount, 
-        u64::try_from(fee_basis_points).unwrap(),
-        vault_storage_,
-        vault_utils_,
-    ).as_u256();
-
-    let mut mint_amount = amount_after_fees * price / PRICE_PRECISION;
-    mint_amount = vault_utils.adjust_for_decimals(mint_amount, asset, rusd);
-
-    vault_utils.increase_rusd_amount(asset, mint_amount);
-    vault_utils.increase_pool_amount(asset, amount_after_fees);
-
-    // require rusd_amount to be less than u64::max
-    require(
-        mint_amount < u64::max().as_u256(),
-        Error::VaultInvalidMintAmountGtU64Max
-    );
-
-    let rusd = abi(RUSD, vault_storage.get_rusd_contr().into());
-    rusd.mint(
-        receiver,
-        u64::try_from(mint_amount).unwrap(),
-        // this will actually lead to the incorrect reward calculation in RUSD->YieldTracker.update_rewards(),
-        // but there is no actual way to query the staked balance of the receiver in the Vault
-        0
-    );
-
-    log(BuyRUSD {
-        account: receiver,
-        asset,
-        asset_amount,
-        rusd_amount: mint_amount,
-        fee_basis_points,
-    });
-
-    mint_amount
-}
-
-
-/// deposit into the pool without minting RUSD tokens
-/// useful in allowing the pool to become over-collaterised
-pub fn _direct_pool_deposit(
-    asset: AssetId,
-    vault_storage_: ContractId,
-    vault_utils_: ContractId
-) {
-    let vault_storage = abi(VaultStorage, vault_storage_.into());
-    let vault_utils = abi(VaultUtils, vault_utils_.into());
-    
-    require(
-        vault_storage.is_asset_whitelisted(asset),
-        Error::VaultAssetNotWhitelisted
-    );
-
-    let amount = _transfer_in(asset).as_u256();
-    require(amount > 0, Error::VaultInvalidAssetAmount);
-
-    vault_utils.increase_pool_amount(asset, amount);
-
-    log(DirectPoolDeposit {
-        asset: asset,
-        amount: amount,
-    });
-}
-
-pub fn _withdraw_fees(
-    asset: AssetId,
-    receiver: Account,
-    vault_storage_: ContractId
-) {
-    let vault_storage = abi(VaultStorage, vault_storage_.into());
-
-    let amount = vault_storage.get_fee_reserves(asset);
-    if amount == 0 {
-        return;
-    }
-
-    vault_storage.write_fee_reserve(asset, 0);
-
-    _transfer_out(
-        asset,
-        u64::try_from(amount).unwrap(),
-        receiver
-    );
-
-    log(WithdrawFees {
-        asset,
-        receiver,
-        amount
-    });
 }

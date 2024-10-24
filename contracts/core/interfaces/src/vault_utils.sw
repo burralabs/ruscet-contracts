@@ -11,8 +11,9 @@ abi VaultUtils {
     #[storage(read, write)]
     fn initialize(
         gov: Account,
-        vault: ContractId,
+        vault_router: ContractId,
         vault_storage: ContractId,
+        vault: ContractId,
     );
 
     /*
@@ -23,13 +24,26 @@ abi VaultUtils {
       /_/_/    /_/   \_\__,_|_| |_| |_|_|_| |_|                         
     */
     #[storage(read, write)]
-    fn set_gov(new_gov: Account);
-
+    fn set_gov(gov: Account);
+    
     #[storage(read, write)]
-    fn write_authorize(caller: Account, is_active: bool);
+    fn write_authorize(account: Account, is_authorized: bool);
 
     #[storage(read, write)]
     fn set_rusd_amount(asset: AssetId, amount: u256);
+
+    #[storage(read, write)]
+    fn set_funding_rate(
+        funding_interval: u64, 
+        funding_rate_factor: u64, 
+        stable_funding_rate_factor: u64
+    );
+
+    #[storage(write)]
+    fn set_max_leverage(
+        asset: AssetId, 
+        max_leverage: u256
+    );
     
     /*
           ____ __     ___          
@@ -46,6 +60,13 @@ abi VaultUtils {
 
     #[storage(read)]
     fn get_vault_storage() -> ContractId;
+
+    fn get_position_key(
+        account: Account,
+        collateral_asset: AssetId,
+        index_asset: AssetId,
+        is_long: bool,
+    ) -> b256;
 
     #[storage(read)]
     fn get_pool_amounts(asset: AssetId) -> u256;
@@ -64,18 +85,6 @@ abi VaultUtils {
 
     #[storage(read)]
     fn get_cumulative_funding_rates(asset: AssetId) -> u256;
-
-    #[storage(read)]
-    fn get_position(
-        account: Account,
-        collateral_asset: AssetId,
-        index_asset: AssetId,
-        is_long: bool,
-    ) -> (
-        u256, u256, u256,
-        u256, u256, Signed256,
-        bool, u64
-    );
 
     #[storage(read)]
     fn get_position_delta(
@@ -106,10 +115,7 @@ abi VaultUtils {
 
     #[storage(read)]
     fn get_funding_fee(
-        account: Account,
         collateral_asset: AssetId,
-        index_asset: AssetId,
-        is_long: bool,
         size: u256,
         entry_funding_rate: u256
     ) -> u256;
@@ -130,43 +136,6 @@ abi VaultUtils {
     fn get_min_price(asset: AssetId) -> u256;
 
     #[storage(read)]
-    fn asset_to_usd_min(
-        asset: AssetId, 
-        asset_amount: u256
-    ) -> u256;
-
-    #[storage(read)]
-    fn usd_to_asset_max(
-        asset: AssetId, 
-        usd_amount: u256
-    ) -> u256;
-
-    #[storage(read)]
-    fn usd_to_asset_min(
-        asset: AssetId, 
-        usd_amount: u256
-    ) -> u256;
-
-    #[storage(read)]
-    fn usd_to_asset(
-        asset: AssetId, 
-        usd_amount: u256, 
-        price: u256
-    ) -> u256;
-
-    #[storage(read)]
-    fn get_redemption_amount(
-        asset: AssetId, 
-        rusd_amount: u256
-    ) -> u256; 
-
-    #[storage(read)]
-    fn get_redemption_collateral(asset: AssetId) -> u256;
-
-    #[storage(read)]
-    fn get_redemption_collateral_usd(asset: AssetId) -> u256;
-
-    #[storage(read)]
     fn get_fee_basis_points(
         asset: AssetId,
         rusd_delta: u256,
@@ -176,20 +145,16 @@ abi VaultUtils {
     ) -> u256;
 
     #[storage(read)]
-    fn get_target_rusd_amount(asset: AssetId) -> u256;
-
-    #[storage(read)]
     fn get_utilization(asset: AssetId) -> u256;
 
     #[storage(read)]
     fn get_global_short_delta(asset: AssetId) -> (bool, u256);
 
     #[storage(read)]
-    fn adjust_for_decimals(
-        amount: u256, 
-        asset_div: AssetId, 
-        asset_mul: AssetId
-    ) -> u256;
+    fn get_redemption_collateral(asset: AssetId) -> u256;
+
+    #[storage(read)]
+    fn get_redemption_collateral_usd(asset: AssetId) -> u256;
 
     #[storage(read)]
     fn validate_liquidation(

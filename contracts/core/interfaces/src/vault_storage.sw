@@ -29,13 +29,9 @@ abi VaultStorage {
     #[storage(read, write)]
     fn initialize(
         gov: Account,
-        router: ContractId,
-        rusd: AssetId,
         rusd_contr: ContractId,
+        rusd: AssetId,
         pricefeed_provider: ContractId,
-        liquidation_fee_usd: u256,
-        funding_rate_factor: u64,
-        stable_funding_rate_factor: u64
     );
 
     /*
@@ -55,19 +51,16 @@ abi VaultStorage {
     fn set_liquidator(liquidator: Account, is_active: bool);
 
     #[storage(write)]
-    fn set_manager(manager: Account, is_manager: bool);
-
-    #[storage(write)]
     fn set_buffer_amount(asset: AssetId, buffer_amount: u256);
-
-    #[storage(write)]
-    fn set_max_leverage(max_leverage: u64);
 
     #[storage(write)]
     fn set_max_rusd_amount(asset: AssetId, max_rusd_amount: u256);
 
     #[storage(write)]
     fn set_pricefeed(pricefeed: ContractId);
+
+    #[storage(write)]
+    fn set_router(router: ContractId);
 
     #[storage(read, write)]
     fn set_fees(
@@ -80,13 +73,6 @@ abi VaultStorage {
         liquidation_fee_usd: u256,
         min_profit_time: u64,
         has_dynamic_fees: bool,
-    );
-
-    #[storage(read, write)]
-    fn set_funding_rate(
-        funding_interval: u64, 
-        funding_rate_factor: u64, 
-        stable_funding_rate_factor: u64
     );
 
     #[storage(read, write)]
@@ -104,10 +90,13 @@ abi VaultStorage {
     fn clear_asset_config(asset: AssetId);
 
     #[storage(write)]
-    fn set_router(router: Account, is_active: bool);
+    fn set_approved_router(router: Account, is_active: bool);
 
     #[storage(write)]
-    fn set_max_global_short_size(asset: AssetId, max_global_short_size: u256);
+    fn set_max_global_short_size(
+        asset: AssetId, 
+        max_global_short_size: u256
+    );
 
     /*
           ____ __     ___               
@@ -116,9 +105,6 @@ abi VaultStorage {
        / / /     \ V / | |  __/\ V  V / 
       /_/_/       \_/  |_|\___| \_/\_/  
     */
-    #[storage(read)]
-    fn is_initialized() -> bool;
-    
     #[storage(read)]
     fn has_dynamic_fees() -> bool;
 
@@ -159,19 +145,13 @@ abi VaultStorage {
     fn get_pricefeed_provider() -> ContractId;
 
     #[storage(read)]
-    fn get_funding_interval() -> u64;
-
-    #[storage(read)]
-    fn get_funding_rate_factor() -> u64;
-
-    #[storage(read)]
-    fn get_stable_funding_rate_factor() -> u64;
-
-    #[storage(read)]
     fn get_total_asset_weights() -> u64;
 
     #[storage(read)]
-    fn is_approved_router(account1: Account, account2: Account) -> bool;
+    fn is_approved_router(
+        account1: Account, 
+        account2: Account
+    ) -> bool;
 
     #[storage(read)]
     fn is_liquidator(account: Account) -> bool;
@@ -207,15 +187,6 @@ abi VaultStorage {
     fn get_max_rusd_amount(asset: AssetId) -> u256;
 
     #[storage(read)]
-    fn get_max_leverage() -> u64;
-
-    #[storage(read)]
-    fn get_is_manager(account: Account) -> bool;
-    
-    #[storage(read)]
-    fn get_asset_balance(asset: AssetId) -> u64;
-
-    #[storage(read)]
     fn get_buffer_amounts(asset: AssetId) -> u256;
 
     #[storage(read)]
@@ -233,6 +204,47 @@ abi VaultStorage {
     #[storage(read)]
     fn get_max_global_short_sizes(asset: AssetId) -> u256;
 
+    #[storage(read)]
+    fn get_redemption_amount(
+        asset: AssetId, 
+        rusd_amount: u256
+    ) -> u256; 
+
+    #[storage(read)]
+    fn get_target_rusd_amount(asset: AssetId) -> u256;
+
+    #[storage(read)]
+    fn adjust_for_decimals(
+        amount: u256, 
+        asset_div: AssetId, 
+        asset_mul: AssetId
+    ) -> u256;
+
+    #[storage(read)]
+    fn asset_to_usd_min(
+        asset: AssetId, 
+        asset_amount: u256
+    ) -> u256;
+
+    #[storage(read)]
+    fn usd_to_asset_max(
+        asset: AssetId, 
+        usd_amount: u256
+    ) -> u256;
+
+    #[storage(read)]
+    fn usd_to_asset_min(
+        asset: AssetId, 
+        usd_amount: u256
+    ) -> u256;
+
+    #[storage(read)]
+    fn usd_to_asset(
+        asset: AssetId, 
+        usd_amount: u256, 
+        price: u256
+    ) -> u256;
+
     /*
           ____  ____        _     _ _      
          / / / |  _ \ _   _| |__ | (_) ___ 
@@ -241,16 +253,28 @@ abi VaultStorage {
       /_/_/    |_|    \__,_|_.__/|_|_|\___|
     */
     #[storage(write)]
-    fn write_last_funding_time(asset: AssetId, last_funding_time: u64);
+    fn write_last_funding_time(
+        asset: AssetId, 
+        last_funding_time: u64
+    );
 
     #[storage(write)]
-    fn write_position(position_key: b256, position: Position);
+    fn write_position(
+        position_key: b256, 
+        position: Position
+    );
 
     #[storage(write)]
-    fn write_fee_reserve(asset: AssetId, fee_reserve: u256);
+    fn write_fee_reserve(
+        asset: AssetId, 
+        fee_reserve: u256
+    );
 
     #[storage(write)]
-    fn write_global_short_average_price(asset: AssetId, global_short_average_price: u256);
+    fn write_global_short_average_price(
+        asset: AssetId, 
+        global_short_average_price: u256
+    );
 }
 
 impl Hash for PositionKey {

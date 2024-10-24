@@ -7,7 +7,35 @@ use helpers::{
 };
 
 pub struct SetGov {
-    pub new_gov: Account
+    pub gov: Account
+}
+
+pub struct SetVaultRouter {
+    pub vault_router: ContractId
+}
+
+pub struct SetVaultStorage {
+    pub vault_storage: ContractId
+}
+
+pub struct SetVault {
+    pub vault: ContractId
+}
+
+pub struct WriteAuthorize {
+    pub account: Account,
+    pub is_authorized: bool,
+}
+
+pub struct SetFundingRateInfo {
+    pub funding_interval: u64,
+    pub funding_rate_factor: u64,
+    pub stable_funding_rate_factor: u64
+}
+
+pub struct SetMaxLeverage {
+    pub asset: AssetId,
+    pub max_leverage: u256,
 }
 
 pub struct UpdateFundingRate {

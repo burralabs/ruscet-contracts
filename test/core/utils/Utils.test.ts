@@ -33,8 +33,10 @@ describe("Utils", () => {
         const timestamps = (await utils.functions.get_unix_and_tai64_timestamp().get()).value
         const tai64_time = timestamps[0].toString()
         const unix_time = timestamps[1].toString()
+        // console.log({ tai64_time, unix_time })
 
         const unix_date = new Date(17235185170000 /*Number(unix_time) * 1000*/)
+        // console.log("Date:", unix_date)
 
         expect(unix_time).to.equal(convertTai64ToUnixTimestamp(tai64_time))
     })

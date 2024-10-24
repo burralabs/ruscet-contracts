@@ -2,30 +2,31 @@ import { expect, use } from "chai"
 import { AbstractContract, Provider, Wallet, WalletUnlocked } from "fuels"
 import {
     Fungible,
-    Rlp,
     Pricefeed,
     TimeDistributor,
     Rusd,
     Utils,
-    Vault,
+    VaultRouter,
     VaultPricefeed,
     VaultStorage,
     VaultUtils,
+    Vault,
     YieldTracker,
+    VaultRusd,
+    VaultPosition,
 } from "../../../types"
-import { deploy, getBalance, getValue, getValStr, formatObj, call } from "../../utils/utils"
-import { addrToAccount, contrToAccount, toAccount, toAddress, toContract } from "../../utils/account"
-import { asStr, expandDecimals, toNormalizedPrice, toPrice, toUsd, toUsdBN } from "../../utils/units"
-import { ZERO_B256 } from "../../utils/constants"
-import { getAssetId, toAsset, transfer } from "../../utils/asset"
+import { deploy, getValStr, call } from "../../utils/utils"
+import { addrToAccount, contrToAccount, toAddress, toContract } from "../../utils/account"
+import { toPrice, toUsd } from "../../utils/units"
+import { getAssetId, toAsset } from "../../utils/asset"
 import { useChai } from "../../utils/chai"
-import { BigNumber } from "ethers"
-import { getBnbConfig, getBtcConfig, getDaiConfig, getEthConfig, validateVaultBalance } from "../../utils/vault"
+import { BNB_MAX_LEVERAGE, DAI_MAX_LEVERAGE, getBnbConfig, getDaiConfig } from "../../utils/vault"
 import { WALLETS } from "../../utils/wallets"
+import { DECIMALS } from "../../utils/constants"
 
 use(useChai)
 
-describe("Vault.getFeeBasisPoints", function () {
+describe("VaultRouter.getFeeBasisPoints", function () {
     let attachedContracts: AbstractContract[]
     let deployer: WalletUnlocked
     let user0: WalletUnlocked
@@ -39,12 +40,14 @@ describe("Vault.getFeeBasisPoints", function () {
     let DAIPricefeed: Pricefeed
     let BTC: Fungible
     let BTCPricefeed: Pricefeed
-    let vault: Vault
+    let vaultRouter: VaultRouter
     let vaultStorage: VaultStorage
     let vaultUtils: VaultUtils
+    let vault: Vault
+    let vaultRusd: VaultRusd
+    let vaultPosition: VaultPosition
     let rusd: Rusd
     let RUSD: string // the RUSD fungible asset
-
     let vaultPricefeed: VaultPricefeed
     let timeDistributor: TimeDistributor
     let yieldTracker: YieldTracker
@@ -73,43 +76,83 @@ describe("Vault.getFeeBasisPoints", function () {
         await call(BTCPricefeed.functions.initialize(addrToAccount(deployer), "BTC Pricefeed"))
 
         /*
-            Vault + Router + RUSD
+            VaultRouter + Router + RUSD
         */
         utils = await deploy("Utils", deployer)
         vaultStorage = await deploy("VaultStorage", deployer)
         vaultUtils = await deploy("VaultUtils", deployer)
-        vault = await deploy("Vault", deployer, {
-            VAULT_STORAGE: toContract(vaultStorage),
-            VAULT_UTILS: toContract(vaultUtils),
-        })
+        vault = await deploy("Vault", deployer)
+        vaultRouter = await deploy("VaultRouter", deployer)
+        vaultRusd = await deploy("VaultRusd", deployer)
+        vaultPosition = await deploy("VaultPosition", deployer)
         vaultPricefeed = await deploy("VaultPricefeed", deployer)
         rusd = await deploy("Rusd", deployer)
         timeDistributor = await deploy("TimeDistributor", deployer)
         yieldTracker = await deploy("YieldTracker", deployer)
 
-        attachedContracts = [vaultUtils, vaultStorage]
+        attachedContracts = [vaultUtils, vaultStorage, vault, vaultRusd, vaultPosition, vaultPricefeed, rusd]
 
         RUSD = getAssetId(rusd)
 
-        await call(rusd.functions.initialize(toContract(vault)))
+        await call(rusd.functions.initialize(toContract(vaultRusd), toAddress(user0)))
 
         await call(
             vaultStorage.functions.initialize(
                 addrToAccount(deployer),
                 toContract(rusd),
                 toAsset(rusd), // RUSD native asset
-                toContract(rusd), // RUSD contract
                 toContract(vaultPricefeed),
-                toUsd(5), // liquidationFeeUsd
-                600, // fundingRateFactor
-                600, // stableFundingRateFactor
             ),
         )
-        await call(vaultUtils.functions.initialize(addrToAccount(deployer), toContract(vault), toContract(vaultStorage)))
-        await call(vault.functions.initialize(addrToAccount(deployer)))
-        await call(vaultStorage.functions.write_authorize(contrToAccount(vault), true))
+        await call(
+            vaultUtils.functions.initialize(
+                addrToAccount(deployer),
+                toContract(vaultRouter),
+                toContract(vaultStorage),
+                toContract(vault),
+            ),
+        )
+        await call(
+            vaultRouter.functions.initialize(
+                addrToAccount(deployer),
+                toContract(vaultStorage),
+                toContract(vaultUtils),
+                toContract(vault),
+                toContract(vaultRusd),
+                toContract(vaultPosition),
+            ),
+        )
+        await call(vaultStorage.functions.write_authorize(contrToAccount(vaultRouter), true))
         await call(vaultStorage.functions.write_authorize(contrToAccount(vaultUtils), true))
-        await call(vaultUtils.functions.write_authorize(contrToAccount(vault), true))
+        await call(vaultStorage.functions.write_authorize(contrToAccount(vaultRusd), true))
+        await call(vaultStorage.functions.write_authorize(contrToAccount(vaultPosition), true))
+
+        await call(vaultUtils.functions.write_authorize(contrToAccount(vaultRouter), true))
+        await call(vaultUtils.functions.write_authorize(contrToAccount(vaultRusd), true))
+        await call(vaultUtils.functions.write_authorize(contrToAccount(vaultPosition), true))
+
+        await call(vault.functions.initialize(addrToAccount(deployer)))
+        await call(vault.functions.set_vault(toContract(vaultRusd), true))
+        await call(vault.functions.set_vault(toContract(vaultPosition), true))
+
+        await call(
+            vaultRusd.functions.initialize(
+                addrToAccount(deployer),
+                toContract(vaultRouter),
+                toContract(vaultStorage),
+                toContract(vaultUtils),
+                toContract(vault),
+            ),
+        )
+        await call(
+            vaultPosition.functions.initialize(
+                addrToAccount(deployer),
+                toContract(vaultRouter),
+                toContract(vaultStorage),
+                toContract(vaultUtils),
+                toContract(vault),
+            ),
+        )
 
         await call(yieldTracker.functions.initialize(toContract(rusd)))
         await call(yieldTracker.functions.set_time_distributor(toContract(timeDistributor)))
@@ -120,9 +163,17 @@ describe("Vault.getFeeBasisPoints", function () {
         await call(rusd.functions.set_yield_trackers([{ bits: contrToAccount(yieldTracker).value }]))
 
         await call(vaultPricefeed.functions.initialize(addrToAccount(deployer)))
-        await call(vaultPricefeed.functions.set_asset_config(toAsset(BNB), toContract(BNBPricefeed), 8, false))
-        await call(vaultPricefeed.functions.set_asset_config(toAsset(DAI), toContract(DAIPricefeed), 8, false))
-        await call(vaultPricefeed.functions.set_asset_config(toAsset(BTC), toContract(BTCPricefeed), 8, false))
+        await call(vaultPricefeed.functions.set_asset_config(toAsset(BNB), toContract(BNBPricefeed), DECIMALS, false))
+        await call(vaultPricefeed.functions.set_asset_config(toAsset(DAI), toContract(DAIPricefeed), DECIMALS, false))
+        await call(vaultPricefeed.functions.set_asset_config(toAsset(BTC), toContract(BTCPricefeed), DECIMALS, false))
+
+        await call(
+            vaultUtils.functions.set_funding_rate(
+                8 * 3600, // funding_interval (8 hours)
+                600, // fundingRateFactor
+                600, // stableFundingRateFactor
+            ),
+        )
 
         await call(
             vaultStorage.functions.set_fees(
@@ -142,11 +193,12 @@ describe("Vault.getFeeBasisPoints", function () {
     it("getFeeBasisPoints", async () => {
         await call(BNBPricefeed.functions.set_latest_answer(toPrice(300)))
         await call(vaultStorage.functions.set_asset_config(...getBnbConfig(BNB)))
-        expect(await getValStr(vaultUtils.functions.get_target_rusd_amount(toAsset(BNB)))).eq("0")
+        await call(vaultUtils.functions.set_max_leverage(toAsset(BNB), BNB_MAX_LEVERAGE))
+        expect(await getValStr(vaultStorage.functions.get_target_rusd_amount(toAsset(BNB)))).eq("0")
 
         await call(BNB.functions.mint(addrToAccount(user0), 100))
         await call(
-            vault
+            vaultRouter
                 .connect(user0)
                 .functions.buy_rusd(toAsset(BNB), addrToAccount(deployer))
                 .addContracts(attachedContracts)
@@ -156,7 +208,7 @@ describe("Vault.getFeeBasisPoints", function () {
         )
 
         expect(await getValStr(vaultUtils.functions.get_rusd_amount(toAsset(BNB)))).eq("29700")
-        expect(await getValStr(vaultUtils.functions.get_target_rusd_amount(toAsset(BNB)))).eq("29700")
+        expect(await getValStr(vaultStorage.functions.get_target_rusd_amount(toAsset(BNB)))).eq("29700")
 
         // rusdAmount(bnb) is 29700, targetAmount(bnb) is 29700
         expect(await getValStr(vaultUtils.functions.get_fee_basis_points(toAsset(BNB), 1000, 100, 50, true))).eq("100")
@@ -172,8 +224,8 @@ describe("Vault.getFeeBasisPoints", function () {
         await call(DAIPricefeed.functions.set_latest_answer(toPrice(1)))
         await call(vaultStorage.functions.set_asset_config(...getDaiConfig(DAI)))
 
-        expect(await getValStr(vaultUtils.functions.get_target_rusd_amount(toAsset(BNB)))).eq("14850")
-        expect(await getValStr(vaultUtils.functions.get_target_rusd_amount(toAsset(DAI)))).eq("14850")
+        expect(await getValStr(vaultStorage.functions.get_target_rusd_amount(toAsset(BNB)))).eq("14850")
+        expect(await getValStr(vaultStorage.functions.get_target_rusd_amount(toAsset(DAI)))).eq("14850")
 
         // rusdAmount(bnb) is 29700, targetAmount(bnb) is 14850
         // incrementing bnb has an increased fee, while reducing bnb has a decreased fee
@@ -190,7 +242,7 @@ describe("Vault.getFeeBasisPoints", function () {
 
         await call(DAI.functions.mint(addrToAccount(user0), 20000))
         await call(
-            vault
+            vaultRouter
                 .connect(user0)
                 .functions.buy_rusd(toAsset(DAI), addrToAccount(deployer))
                 .addContracts(attachedContracts)
@@ -199,15 +251,15 @@ describe("Vault.getFeeBasisPoints", function () {
                 }),
         )
 
-        expect(await getValStr(vaultUtils.functions.get_target_rusd_amount(toAsset(BNB)))).eq("24850")
-        expect(await getValStr(vaultUtils.functions.get_target_rusd_amount(toAsset(DAI)))).eq("24850")
+        expect(await getValStr(vaultStorage.functions.get_target_rusd_amount(toAsset(BNB)))).eq("24850")
+        expect(await getValStr(vaultStorage.functions.get_target_rusd_amount(toAsset(DAI)))).eq("24850")
 
         const bnbConfig = getBnbConfig(BNB)
         bnbConfig[2] = 30000
         await call(vaultStorage.functions.set_asset_config(...bnbConfig))
 
-        expect(await getValStr(vaultUtils.functions.get_target_rusd_amount(toAsset(BNB)))).eq("37275")
-        expect(await getValStr(vaultUtils.functions.get_target_rusd_amount(toAsset(DAI)))).eq("12425")
+        expect(await getValStr(vaultStorage.functions.get_target_rusd_amount(toAsset(BNB)))).eq("37275")
+        expect(await getValStr(vaultStorage.functions.get_target_rusd_amount(toAsset(DAI)))).eq("12425")
 
         expect(await getValStr(vaultUtils.functions.get_rusd_amount(toAsset(BNB)))).eq("29700")
 
@@ -225,7 +277,7 @@ describe("Vault.getFeeBasisPoints", function () {
 
         await call(BNB.functions.mint(addrToAccount(user0), 200))
         await call(
-            vault
+            vaultRouter
                 .connect(user0)
                 .functions.buy_rusd(toAsset(BNB), addrToAccount(deployer))
                 .addContracts(attachedContracts)
@@ -235,8 +287,8 @@ describe("Vault.getFeeBasisPoints", function () {
         )
 
         expect(await getValStr(vaultUtils.functions.get_rusd_amount(toAsset(BNB)))).eq("89100")
-        expect(await getValStr(vaultUtils.functions.get_target_rusd_amount(toAsset(BNB)))).eq("36366")
-        expect(await getValStr(vaultUtils.functions.get_target_rusd_amount(toAsset(DAI)))).eq("72733")
+        expect(await getValStr(vaultStorage.functions.get_target_rusd_amount(toAsset(BNB)))).eq("36366")
+        expect(await getValStr(vaultStorage.functions.get_target_rusd_amount(toAsset(DAI)))).eq("72733")
 
         // rusdAmount(bnb) is 88800, targetAmount(bnb) is 36266
         // incrementing bnb has an increased fee, while reducing bnb has a decreased fee

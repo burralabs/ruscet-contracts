@@ -48,8 +48,8 @@ storage {
 
     cumulative_reward_per_asset: u256 = 0,
 
-    claimable_reward: StorageMap<Account, u256> = StorageMap::<Account, u256> {},
-    previous_cumulated_reward_per_asset: StorageMap<Account, u256> = StorageMap::<Account, u256> {}
+    claimable_reward: StorageMap<Account, u256> = StorageMap {},
+    previous_cumulated_reward_per_asset: StorageMap<Account, u256> = StorageMap {}
 }
 
 impl YieldTracker for Contract {
@@ -105,24 +105,28 @@ impl YieldTracker for Contract {
         // staked balance of the account
         // we can't accurately calculate the staked balance of an account onchain because of Fuel's UTXO model
         // so we pass it as an argument to this function
-        staked_balance: u256
+        yield_asset_staked_balance: u256
     ) -> u256 {
         let yield_asset = abi(YieldAsset, storage.yield_asset.read().into());
         let time_distributor = abi(TimeDistributor, storage.time_distributor.read().into());
 
-        if staked_balance == 0 {
+        if yield_asset_staked_balance == 0 {
             return storage.claimable_reward.get(account).try_read().unwrap_or(0);
         }
 
-        let pending_rewards = time_distributor.get_distribution_amount(Account::from(ContractId::this())).as_u256() * PRECISION;
+        let pending_rewards = time_distributor.get_distribution_amount(
+            Account::from(ContractId::this())
+        ).as_u256() * PRECISION;
+        
         let total_staked = yield_asset.total_staked().as_u256();
         let next_cumulative_reward_per_asset = 
             storage.cumulative_reward_per_asset.read() + (pending_rewards / total_staked);
 
         storage.claimable_reward.get(account).try_read().unwrap_or(0) + (
-            staked_balance.mul(
+            yield_asset_staked_balance.mul(
                 next_cumulative_reward_per_asset - 
-                storage.previous_cumulated_reward_per_asset.get(account).try_read().unwrap_or(0)
+                storage.previous_cumulated_reward_per_asset.get(account)
+                    .try_read().unwrap_or(0)
             )/ PRECISION
         )
     }
@@ -138,9 +142,9 @@ impl YieldTracker for Contract {
     fn update_rewards(
         account: Account,
         // staked balance of the account
-        staked_balance: u256
+        yield_asset_staked_balance: u256
     ) {
-        _update_rewards(account, staked_balance);
+        _update_rewards(account, yield_asset_staked_balance);
     }
 
     #[storage(read, write)]
@@ -148,14 +152,14 @@ impl YieldTracker for Contract {
         account: Account,
         receiver: Account,
         // staked balance of the account
-        staked_balance: u256
+        yield_asset_staked_balance: u256
     ) -> u256 {
         require(
             get_contract_or_revert() == storage.yield_asset.read(),
             Error::YieldTrackerForbidden
         );
 
-        _update_rewards(account, staked_balance);
+        _update_rewards(account, yield_asset_staked_balance);
 
         let asset_amount = storage.claimable_reward.get(account).try_read().unwrap_or(0);
         storage.claimable_reward.insert(account, 0);
@@ -188,7 +192,7 @@ fn _only_gov() {
 fn _update_rewards(
     account: Account,
     // staked balance of the account
-    staked_balance: u256
+    yield_asset_staked_balance: u256
 ) {
     let yield_asset = abi(YieldAsset, storage.yield_asset.read().into());
     let mut block_reward: u256 = 0;
@@ -220,7 +224,7 @@ fn _update_rewards(
         let previous_cumulated_reward = storage.previous_cumulated_reward_per_asset.get(account).try_read().unwrap_or(0);
 
         let claimable_reward: u256 = storage.claimable_reward.get(account).try_read().unwrap_or(0) +
-            ((staked_balance * (cumulative_reward_per_asset - previous_cumulated_reward)) / PRECISION);
+            ((yield_asset_staked_balance * (cumulative_reward_per_asset - previous_cumulated_reward)) / PRECISION);
         
         storage.claimable_reward.insert(account, claimable_reward);
         storage.previous_cumulated_reward_per_asset.insert(account, cumulative_reward_per_asset);

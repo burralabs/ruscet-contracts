@@ -12,7 +12,10 @@ contract;
 mod errors;
 
 use std::{
-    asset::{mint_to, burn as asset_burn, transfer},
+    asset::{
+        mint_to, 
+        burn as asset_burn
+    },
     context::*,
     revert::require,
     storage::{
@@ -41,7 +44,7 @@ storage {
 
     total_supply: u64 = 0,
 
-    minters: StorageMap<Account, bool> = StorageMap::<Account, bool> {},
+    minters: StorageMap<Account, bool> = StorageMap {},
 }
 
 impl RLP for Contract {
@@ -133,11 +136,17 @@ impl RLP for Contract {
     #[payable]
     #[storage(read, write)]
     fn burn(account: Account, amount: u64) {
-        _only_minter();
         _burn(account, amount)
     }
 }
 
+/*
+    ____  ___       _                        _ 
+   / / / |_ _|_ __ | |_ ___ _ __ _ __   __ _| |
+  / / /   | || '_ \| __/ _ \ '__| '_ \ / _` | |
+ / / /    | || | | | ||  __/ |  | | | | (_| | |
+/_/_/    |___|_| |_|\__\___|_|  |_| |_|\__,_|_|
+*/
 #[storage(read)]
 fn _only_gov() {
     require(
@@ -159,6 +168,10 @@ fn _mint(
     account: Account,
     amount: u64
 ) {
+    require(
+        amount > 0,
+        Error::RLPMintZeroAmount
+    );
     require(account != ZERO_ACCOUNT, Error::RLPMintToZeroAccount);
 
     let identity = account_to_identity(account);
@@ -175,7 +188,6 @@ fn _burn(
     amount: u64
 ) {
     // @TODO: verify if the assets to be burned need to be forwarded to this call
-    // @TODO: verify the same for `RSCT`
     require(account != ZERO_ACCOUNT, Error::RLPBurnFromZeroAccount);
     require(
         msg_asset_id() == AssetId::new(ContractId::this(), ZERO),

@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 library;
 
-use helpers::{
-    context::*,
-};
+use helpers::context::*;
 
 abi Vault {
     #[storage(read, write)]
@@ -19,14 +17,11 @@ abi Vault {
     #[storage(read, write)]
     fn set_gov(new_gov: Account);
 
-    #[storage(read)]
-    fn withdraw_fees(
-        asset: AssetId,
-        receiver: Account 
-    );
-
+    #[storage(read, write)]
+    fn set_vault(vault_router: ContractId, is_active: bool);
+    
     /*
-          ____ __     ___               
+          ____ __     ___          
          / / / \ \   / (_) _____      __
         / / /   \ \ / /| |/ _ \ \ /\ / /
        / / /     \ V / | |  __/\ V  V / 
@@ -35,9 +30,8 @@ abi Vault {
     #[storage(read)]
     fn get_gov() -> Account;
 
-    // fn get_vault_storage() -> ContractId;
-
-    // fn get_vault_utils() -> ContractId;
+    #[storage(read)]
+    fn is_vault_active(vault_router: ContractId) -> bool;
 
     /*
           ____  ____        _     _ _      
@@ -46,42 +40,10 @@ abi Vault {
        / / /   |  __/| |_| | |_) | | | (__ 
       /_/_/    |_|    \__,_|_.__/|_|_|\___|
     */
-    #[payable]
-    fn direct_pool_deposit(asset: AssetId);
-
-    #[payable]
-    fn buy_rusd(asset: AssetId, receiver: Account) -> u256;
-
-    #[payable]
-    fn sell_rusd(asset: AssetId, receiver: Account) -> u256;
-
-    #[payable]
-    fn swap(asset_in: AssetId, asset_out: AssetId, receiver: Account) -> u64;
-
-    #[payable]
-    fn increase_position(
-        account: Account,
-        collateral_asset: AssetId,
-        index_asset: AssetId,
-        size_delta: u256,
-        is_long: bool
-    );
-
-    fn decrease_position(
-        account: Account,
-        collateral_asset: AssetId,
-        index_asset: AssetId,
-        collateral_delta: u256,
-        size_delta: u256,
-        is_long: bool,
-        receiver: Account
-    ) -> u256;
-
-    fn liquidate_position(
-        account: Account,
-        collateral_asset: AssetId,
-        index_asset: AssetId,
-        is_long: bool,
-        fee_receiver: Account
+    #[storage(read)]
+    fn transfer_out(
+        asset: AssetId,
+        amount: u64,
+        receiver: Account,
     );
 }

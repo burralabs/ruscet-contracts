@@ -1,11 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 contract;
 
-mod internals;
-mod utils;
-mod events;
-mod constants;
 mod errors;
+mod events;
 
 /*
 __     __          _ _   
@@ -18,31 +15,16 @@ __     __          _ _
 use std::{
     context::*,
     revert::require,
-    storage::storage_vec::*,
-    math::*,
-    primitive_conversions::{
-        u8::*,
-        u64::*,
-    }
 };
 use std::hash::*;
 use helpers::{
-    context::*, 
+    context::*,
+    transfer::transfer_assets,
     utils::*,
-    signed_256::*,
-    zero::*
 };
 use core_interfaces::vault::Vault;
-use internals::*;
-use utils::*;
-use events::*;
-use constants::*;
 use errors::*;
-
-configurable {
-    VAULT_STORAGE: ContractId = ZERO_CONTRACT,
-    VAULT_UTILS: ContractId = ZERO_CONTRACT
-}
+use events::*;
 
 storage {
     // gov is not restricted to an `Address` (EOA) or a `Contract` (external)
@@ -50,15 +32,20 @@ storage {
     gov: Account = ZERO_ACCOUNT,
 
     is_initialized: bool = false,
+    vault_routers: StorageMap<ContractId, bool> = StorageMap {},
 }
 
 impl Vault for Contract {
     #[storage(read, write)]
     fn initialize(gov: Account) {
-        require(!storage.is_initialized.read(), Error::VaultAlreadyInitialized);
+        require(
+            !storage.is_initialized.read(), 
+            Error::VaultAlreadyInitialized
+        );
         storage.is_initialized.write(true);
 
         storage.gov.write(gov);
+        log(SetGov { gov });
     }
 
     /*
@@ -72,15 +59,14 @@ impl Vault for Contract {
     fn set_gov(new_gov: Account) {
         _only_gov();
         storage.gov.write(new_gov);
+        log(SetGov { gov: new_gov });
     }
 
-    #[storage(read)]
-    fn withdraw_fees(
-        asset: AssetId,
-        receiver: Account 
-    ) {
+    #[storage(read, write)]
+    fn set_vault(vault_router: ContractId, is_active: bool) {
         _only_gov();
-        _withdraw_fees(asset, receiver, VAULT_STORAGE);
+        storage.vault_routers.insert(vault_router, is_active);
+        log(SetVaultRouter { vault_router, is_active });
     }
 
     /*
@@ -95,13 +81,10 @@ impl Vault for Contract {
         storage.gov.read()
     }
 
-    // fn get_vault_storage() -> ContractId {
-    //     VAULT_STORAGE
-    // }
-
-    // fn get_vault_utils() -> ContractId {
-    //     VAULT_UTILS
-    // }
+    #[storage(read)]
+    fn is_vault_active(vault_router: ContractId) -> bool {
+        storage.vault_routers.get(vault_router).try_read().unwrap_or(false)
+    }
 
     /*
           ____  ____        _     _ _      
@@ -110,107 +93,20 @@ impl Vault for Contract {
        / / /   |  __/| |_| | |_) | | | (__ 
       /_/_/    |_|    \__,_|_.__/|_|_|\___|
     */
-    #[payable]
-    fn direct_pool_deposit(asset: AssetId) {
-        _direct_pool_deposit(
-            asset,
-            VAULT_STORAGE,
-            VAULT_UTILS
-        );
-    }
-
-    #[payable]
-    fn buy_rusd(asset: AssetId, receiver: Account) -> u256 {
-        _buy_rusd(
-            asset,
-            receiver,
-            VAULT_STORAGE,
-            VAULT_UTILS
-        )
-    }
-
-    #[payable]
-    fn sell_rusd(asset: AssetId, receiver: Account) -> u256 {
-        _sell_rusd(
-            asset,
-            receiver,
-            VAULT_STORAGE,
-            VAULT_UTILS
-        )
-    }
-
-    #[payable]
-    fn swap(
-        asset_in: AssetId,
-        asset_out: AssetId,
-        receiver: Account
-    ) -> u64 {
-        _swap(
-            asset_in,
-            asset_out,
-            receiver,
-            VAULT_STORAGE,
-            VAULT_UTILS
-        )
-    }
-
-    #[payable]
-    fn increase_position(
-        account: Account,
-        collateral_asset: AssetId,
-        index_asset: AssetId, 
-        size_delta: u256,
-        is_long: bool,
+    /// Callable only by the VaultRouter
+    /// transfer assets from the VaultRouterPool to `receiver`
+    #[storage(read)]
+    fn transfer_out(
+        asset: AssetId,
+        amount: u64,
+        receiver: Account,
     ) {
-        _increase_position(
-            account,
-            collateral_asset,
-            index_asset,
-            size_delta,
-            is_long,
-            VAULT_STORAGE,
-            VAULT_UTILS,
-        );
-    }
+        _only_vault_router();
 
-    fn decrease_position(
-        account: Account,
-        collateral_asset: AssetId,
-        index_asset: AssetId,
-        collateral_delta: u256,
-        size_delta: u256,
-        is_long: bool,
-        receiver: Account
-    ) -> u256 {
-        _decrease_position(
-            account,
-            collateral_asset,
-            index_asset,
-            collateral_delta,
-            size_delta,
-            is_long,
+        transfer_assets(
+            asset,
             receiver,
-            true,
-            VAULT_STORAGE,
-            VAULT_UTILS,
-        )
-    }
-
-    fn liquidate_position(
-        account: Account,
-        collateral_asset: AssetId,
-        index_asset: AssetId,
-        is_long: bool,
-        fee_receiver: Account
-    ) {
-        _liquidate_position(
-            account,
-            collateral_asset,
-            index_asset,
-            is_long,
-            fee_receiver,
-            VAULT_STORAGE,
-            VAULT_UTILS
+            amount
         );
     }
 }
@@ -225,4 +121,12 @@ impl Vault for Contract {
 #[storage(read)]
 fn _only_gov() {
     require(get_sender() == storage.gov.read(), Error::VaultForbiddenNotGov);
+}
+
+#[storage(read)]
+fn _only_vault_router() {
+    require(
+        storage.vault_routers.get(get_contract_or_revert()).try_read().unwrap_or(false),
+        Error::VaultForbiddenNotVaultRouter
+    );
 }

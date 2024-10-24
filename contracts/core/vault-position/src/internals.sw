@@ -12,6 +12,7 @@ use std::{
 use std::hash::*;
 use core_interfaces::{
     vault_utils::VaultUtils,
+    vault::Vault,
     vault_storage::{
         VaultStorage,
         PositionKey,
@@ -44,18 +45,18 @@ pub fn _get_position_key(
 
 pub fn _validate_router(
     account: Account,
-    vault_storage_: ContractId
+    vault_storage_: ContractId,
+    tx_sender: Account
 ) {
     let vault_storage = abi(VaultStorage, vault_storage_.into());
-    let sender = get_sender();
 
-    if sender == account || sender == Account::from(vault_storage.get_router()) {
+    if tx_sender == account || tx_sender == Account::from(vault_storage.get_router()) {
         return;
     }
 
     require(
-        vault_storage.is_approved_router(account, sender),
-        Error::VaultInvalidMsgCaller
+        vault_storage.is_approved_router(account, tx_sender),
+        Error::VaultRouterInvalidMsgCaller
     );
 }
 
@@ -69,7 +70,7 @@ pub fn _validate_assets(
 
     require(
         vault_storage.is_asset_whitelisted(collateral_asset),
-        Error::VaultCollateralAssetNotWhitelisted
+        Error::VaultRouterCollateralAssetNotWhitelisted
     );
 
     let collateral_is_stable = vault_storage.is_stable_asset(collateral_asset);
@@ -77,11 +78,11 @@ pub fn _validate_assets(
     if is_long {
         require(
             collateral_asset == index_asset,
-            Error::VaultLongCollateralIndexAssetsMismatch
+            Error::VaultRouterLongCollateralIndexAssetsMismatch
         );
         require(
             !collateral_is_stable,
-            Error::VaultLongCollateralAssetMustNotBeStableAsset
+            Error::VaultRouterLongCollateralAssetMustNotBeStableAsset
         );
 
         return;
@@ -89,15 +90,15 @@ pub fn _validate_assets(
 
     require(
         collateral_is_stable,
-        Error::VaultShortCollateralAssetMustBeStableAsset
+        Error::VaultRouterShortCollateralAssetMustBeStableAsset
     );
     require(
         !vault_storage.is_stable_asset(index_asset),
-        Error::VaultShortIndexAssetMustNotBeStableAsset
+        Error::VaultRouterShortIndexAssetMustNotBeStableAsset
     );
     require(
         vault_storage.is_shortable_asset(index_asset),
-        Error::VaultShortIndexAssetNotShortable
+        Error::VaultRouterShortIndexAssetNotShortable
     );
 }
 
@@ -105,14 +106,14 @@ pub fn _validate_position(size: u256, collateral: u256) {
     if size == 0 {
         require(
             collateral == 0,
-            Error::VaultCollateralShouldBeWithdrawn
+            Error::VaultRouterCollateralShouldBeWithdrawn
         );
         return;
     }
 
     require(
         size >= collateral,
-        Error::VaultSizeMustBeMoreThanCollateral
+        Error::VaultRouterSizeMustBeMoreThanCollateral
     );
 }
 
@@ -125,30 +126,43 @@ pub fn _validate_buffer_amount(
     let vault_utils = abi(VaultUtils, vault_utils_.into());
     
     if vault_utils.get_pool_amounts(asset) < vault_storage.get_buffer_amounts(asset) {
-        require(false, Error::VaultPoolAmountLtBuffer);
+        require(false, Error::VaultRouterPoolAmountLtBuffer);
     }
 }
 
-pub fn _transfer_in(asset_id: AssetId) -> u64 {
-    if msg_amount() > 0 {
+pub fn _transfer_in(
+    asset_id: AssetId,
+    vault_: ContractId
+) -> u64 {
+    let amount = msg_amount();
+    if amount > 0 {
         require(
             msg_asset_id() == asset_id,
-            Error::VaultInvalidAssetForwarded
+            Error::VaultRouterInvalidAssetForwarded
+        );
+
+        // transfer assets to the Vault
+        transfer_assets(
+            asset_id,
+            Account::from(vault_),
+            amount
         );
     }
-    
-    msg_amount()
+
+    amount
 }
 
 pub fn _transfer_out(
     asset_id: AssetId, 
     amount: u64, 
-    receiver: Account
+    receiver: Account,
+    vault_: ContractId
 ) {
-    transfer_assets(
+    let vault = abi(Vault, vault_.into());
+    vault.transfer_out(
         asset_id,
+        amount,
         receiver,
-        amount
     );
 }
 
@@ -246,17 +260,14 @@ pub fn _collect_margin_fees(
     );
 
     let funding_fee = vault_utils.get_funding_fee(
-        account,
         collateral_asset,
-        index_asset,
-        is_long,
         size,
         entry_funding_rate
     );
 
     fee_usd = position_fee + funding_fee;
 
-    fee_assets = vault_utils.usd_to_asset_min(collateral_asset, fee_usd);
+    fee_assets = vault_storage.usd_to_asset_min(collateral_asset, fee_usd);
     let new_fee_reserve =  vault_storage.get_fee_reserves(collateral_asset) + fee_assets;
     vault_storage.write_fee_reserve(
         collateral_asset,
@@ -270,76 +281,4 @@ pub fn _collect_margin_fees(
     });
 
     fee_usd
-}
-
-pub fn _collect_swap_fees(
-    asset: AssetId, 
-    amount: u64, 
-    fee_basis_points: u64, 
-    vault_storage_: ContractId, 
-    vault_utils_: ContractId
-) -> u64 {
-    let vault_utils = abi(VaultUtils, vault_utils_.into());
-    let vault_storage = abi(VaultStorage, vault_storage_.into());
-
-    let after_fee_amount = amount * (BASIS_POINTS_DIVISOR - fee_basis_points) / BASIS_POINTS_DIVISOR;
-    let fee_amount = amount - after_fee_amount;
-
-    let fee_reserve = vault_storage.get_fee_reserves(asset);
-    vault_storage.write_fee_reserve(asset, fee_reserve + fee_amount.as_u256());
-
-    log(CollectSwapFees {
-        asset,
-        fee_usd: vault_utils.asset_to_usd_min(asset, fee_amount.as_u256()),
-        fee_assets: fee_amount,
-    });
-
-    after_fee_amount
-}
-
-pub fn _get_swap_fee_basis_points(
-    asset_in: AssetId,
-    asset_out: AssetId,
-    rusd_amount: u256,
-    vault_storage_: ContractId,
-    vault_utils_: ContractId,
-) -> u256 {
-    let vault_utils = abi(VaultUtils, vault_utils_.into());
-    let vault_storage = abi(VaultStorage, vault_storage_.into());
-
-    let is_stableswap = vault_storage.is_stable_asset(asset_in) && vault_storage.is_stable_asset(asset_out);
-
-    let base_bps = if is_stableswap {
-        vault_storage.get_stable_swap_fee_basis_points()
-    } else {
-        vault_storage.get_swap_fee_basis_points()
-    };
-
-    let tax_bps = if is_stableswap {
-        vault_storage.get_stable_tax_basis_points()
-    } else {
-        vault_storage.get_tax_basis_points()
-    };
-
-    let fee_basis_points_0 = vault_utils.get_fee_basis_points(
-        asset_in,
-        rusd_amount,
-        base_bps.as_u256(),
-        tax_bps.as_u256(),
-        true
-    );
-    let fee_basis_points_1 = vault_utils.get_fee_basis_points(
-        asset_out,
-        rusd_amount,
-        base_bps.as_u256(),
-        tax_bps.as_u256(),
-        false
-    );
-
-    // use the higher of the two fee basis points
-    if fee_basis_points_0 > fee_basis_points_1 {
-        fee_basis_points_0
-    } else {
-        fee_basis_points_1
-    }
 }

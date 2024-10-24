@@ -4,7 +4,6 @@ contract;
 mod constants;
 mod events;
 mod errors;
-mod internal;
 
 /*
 __     __          _ _     ____  _                             
@@ -37,32 +36,41 @@ use core_interfaces::{
         VaultStorage,
         Position,
     },
+    vault_pricefeed::VaultPricefeed,
 };
+use asset_interfaces::rusd::RUSD;
 use constants::*;
 use errors::*;
 use events::*;
-use internal::*;
 
 storage {
     // gov is not restricted to an `Address` (EOA) or a `Contract` (external)
     // because this can be either a regular EOA (Address) or a Multisig (Contract)
     gov: Account = ZERO_ACCOUNT,
-    /// only `Account`s that are write-authorized into Vault storage
-    is_write_authorized: StorageMap<Account, bool> = StorageMap::<Account, bool> {},
-
     is_initialized: bool = false,
 
-    max_leverage: u64 = 50 * 10_000, // 50%
     has_dynamic_fees: bool = false,
     min_profit_time: u64 = 0,
 
-    // Fees
-    liquidation_fee_usd: u256 = 0,
+    /// only `Account`s that are write-authorized into VaultRouter storage
+    is_write_authorized: StorageMap<Account, bool> = StorageMap {},
+
+    /// ---------------------  Fees  ---------------------
+    /// charged when liquidating a position
+    /// denominated in USD
+    liquidation_fee_usd: u256 = DEFAULT_LIQUIDATION_FEE_USD,
+    /// general tax applied to all assets to generate protocol revenue
     tax_basis_points: u64 = 50, // 0.5%
+    /// reduced tax for stable assets
     stable_tax_basis_points: u64 = 20, // 0.2%
+    /// charged when minting/burning RLP/RUSD assets
+    /// helps maintain the stability of the RLP pool and discourage rapid entering and exiting.
     mint_burn_fee_basis_points: u64 = 30, // 0.3%
+    /// charged when swapping b/w different assets within the protocol
     swap_fee_basis_points: u64 = 30, // 0.3%
+    /// reduced swap fee for stable assets
     stable_swap_fee_basis_points: u64 = 4, // 0.04%
+    /// applied to size of leveraged positions
     margin_fee_basis_points: u64 = 10, // 0.1%
 
     // Externals
@@ -74,80 +82,53 @@ storage {
     pricefeed_provider: ContractId = ZERO_CONTRACT,
 
     // Funding
-    funding_interval: u64 = 8 * 3600, // 8 hours
-    funding_rate_factor: u64 = 0,
-    stable_funding_rate_factor: u64 = 0,
     total_asset_weights: u64 = 0,
 
     // Misc
-    approved_routers: StorageMap<Account, StorageMap<Account, bool>> = 
-        StorageMap::<Account, StorageMap<Account, bool>> {},
-    is_liquidator: StorageMap<Account, bool> = StorageMap::<Account, bool> {},
-    is_manager: StorageMap<Account, bool> = StorageMap::<Account, bool> {},
+    approved_routers: StorageMap<Account, StorageMap<Account, bool>> = StorageMap {},
+    is_liquidator: StorageMap<Account, bool> = StorageMap {},
 
     whitelisted_asset_count: u64 = 0,
     all_whitelisted_assets: StorageVec<AssetId> = StorageVec {},
 
-    whitelisted_assets: StorageMap<AssetId, bool> = StorageMap::<AssetId, bool> {},
-    asset_decimals: StorageMap<AssetId, u8> = StorageMap::<AssetId, u8> {},
-    min_profit_basis_points: StorageMap<AssetId, u64> = StorageMap::<AssetId, u64> {},
-    stable_assets: StorageMap<AssetId, bool> = StorageMap::<AssetId, bool> {},
-    shortable_assets: StorageMap<AssetId, bool> = StorageMap::<AssetId, bool> {},
+    whitelisted_assets: StorageMap<AssetId, bool> = StorageMap {},
+    asset_decimals: StorageMap<AssetId, u8> = StorageMap {},
+    min_profit_basis_points: StorageMap<AssetId, u64> = StorageMap {},
+    stable_assets: StorageMap<AssetId, bool> = StorageMap {},
+    shortable_assets: StorageMap<AssetId, bool> = StorageMap {},
 
     // allows customisation of index composition
-    asset_weights: StorageMap<AssetId, u64> = StorageMap::<AssetId, u64> {},
+    asset_weights: StorageMap<AssetId, u64> = StorageMap {},
     // allows setting a max amount of RUSD debt for an asset
-    max_rusd_amounts: StorageMap<AssetId, u256> = StorageMap::<AssetId, u256> {},
+    max_rusd_amounts: StorageMap<AssetId, u256> = StorageMap {},
 
     // allows specification of an amount to exclude from swaps
     // can be used to ensure a certain amount of liquidity is available for leverage positions
-    buffer_amounts: StorageMap<AssetId, u256> = StorageMap::<AssetId, u256> {},
+    buffer_amounts: StorageMap<AssetId, u256> = StorageMap {},
     // tracks the last time funding was updated for a token
-    last_funding_times: StorageMap<AssetId, u64> = StorageMap::<AssetId, u64> {},
+    last_funding_times: StorageMap<AssetId, u64> = StorageMap {},
     // tracks all open Positions
-    positions: StorageMap<b256, Position> = StorageMap::<b256, Position> {},
+    positions: StorageMap<b256, Position> = StorageMap {},
     // tracks amount of fees per asset
-    fee_reserves: StorageMap<AssetId, u256> = StorageMap::<AssetId, u256> {},
-    // global_short_sizes: StorageMap<AssetId, u256> = StorageMap::<AssetId, u256> {},
-    global_short_average_prices: StorageMap<AssetId, u256> = StorageMap::<AssetId, u256> {},
-    max_global_short_sizes: StorageMap<AssetId, u256> = StorageMap::<AssetId, u256> {},
+    fee_reserves: StorageMap<AssetId, u256> = StorageMap {},
+    /// tracks average entry price for all short positions of each Asset
+    /// value is weighted average at which all short positions for that asset were opened.
+    global_short_average_prices: StorageMap<AssetId, u256> = StorageMap {},
+    /// defines maximum allowed size for the total short positions for an Asset
+    /// risk management feature that prevents the protocol from having too much exposure to 
+    /// short positions for any single asset.
+    max_global_short_sizes: StorageMap<AssetId, u256> = StorageMap {},
 }
 
 impl VaultStorage for Contract {
     #[storage(read, write)]
     fn initialize(
         gov: Account,
-        router: ContractId,
-        rusd: AssetId,
         rusd_contr: ContractId,
+        rusd: AssetId,
         pricefeed_provider: ContractId,
-        liquidation_fee_usd: u256,
-        funding_rate_factor: u64,
-        stable_funding_rate_factor: u64,
     ) {
-        require(!storage.is_initialized.read(), Error::VaultStorageAlreadyInitialized);
-        storage.is_initialized.write(true);
-        
-        storage.gov.write(gov);
-
-        require(
-            rusd == AssetId::new(rusd_contr, ZERO),
-            Error::VaultStorageInvalidRUSDAsset
-        );
-
-        storage.router.write(router);
-        storage.rusd.write(rusd);
-        storage.rusd_contr.write(rusd_contr);
-        storage.pricefeed_provider.write(pricefeed_provider);
-        storage.liquidation_fee_usd.write(liquidation_fee_usd);
-        storage.funding_rate_factor.write(funding_rate_factor);
-        storage.stable_funding_rate_factor.write(stable_funding_rate_factor);
-
-        log(SetFundingRateInfo {
-            funding_interval: storage.funding_interval.read(),
-            funding_rate_factor,
-            stable_funding_rate_factor
-        });
+        _initialize(gov, rusd_contr, rusd, pricefeed_provider);
     }
 
     /*
@@ -161,12 +142,12 @@ impl VaultStorage for Contract {
     fn set_gov(gov: Account) {
         _only_gov();
         storage.gov.write(gov);
+        log(SetGov { gov });
     }
 
     #[storage(write)]
     fn write_authorize(account: Account, is_authorized: bool) {
         _only_gov();
-
         storage.is_write_authorized.insert(account, is_authorized);
         log(WriteAuthorize { account, is_authorized });
     }
@@ -179,24 +160,10 @@ impl VaultStorage for Contract {
     }
 
     #[storage(write)]
-    fn set_manager(manager: Account, is_manager: bool) {
-        _only_gov();
-        storage.is_manager.insert(manager, is_manager);
-        log(SetManager { manager, is_manager });
-    }
-
-    #[storage(write)]
     fn set_buffer_amount(asset: AssetId, buffer_amount: u256) {
         _only_gov();
         storage.buffer_amounts.insert(asset, buffer_amount);
         log(SetBufferAmount { asset, buffer_amount });
-    }
-
-    #[storage(write)]
-    fn set_max_leverage(max_leverage: u64) {
-        _only_gov();
-        storage.max_leverage.write(max_leverage);
-        log(SetMaxLeverage { max_leverage });
     }
 
     #[storage(write)]
@@ -209,13 +176,15 @@ impl VaultStorage for Contract {
     #[storage(write)]
     fn set_pricefeed(pricefeed: ContractId) {
         _only_gov();
-        require(
-            pricefeed.non_zero(),
-            Error::VaultStoragePricefeedZero
-        );
-        
         storage.pricefeed_provider.write(pricefeed);
-        log(SetPricefeed { pricefeed });
+        log(SetPricefeedProvider { pricefeed });
+    }
+
+    #[storage(write)]
+    fn set_router(router: ContractId) {
+        _only_gov();
+        storage.router.write(router);
+        log(SetRouter { router });
     }
 
     #[storage(read, write)]
@@ -231,15 +200,17 @@ impl VaultStorage for Contract {
         has_dynamic_fees: bool,
     ) {
         _only_gov();
-        _verify_fees(
-            tax_basis_points,
-            stable_tax_basis_points,
-            mint_burn_fee_basis_points,
-            swap_fee_basis_points,
-            stable_swap_fee_basis_points,
-            margin_fee_basis_points,
-            liquidation_fee_usd
+
+        require(
+            tax_basis_points <= MAX_FEE_BASIS_POINTS &&
+            stable_tax_basis_points <= MAX_FEE_BASIS_POINTS &&
+            mint_burn_fee_basis_points <= MAX_FEE_BASIS_POINTS &&
+            swap_fee_basis_points <= MAX_FEE_BASIS_POINTS &&
+            stable_swap_fee_basis_points <= MAX_FEE_BASIS_POINTS &&
+            margin_fee_basis_points <= MAX_FEE_BASIS_POINTS,
+            Error::VaultStorageInvalidFeeBasisPoints
         );
+        // require(liquidation_fee_usd <= MAX_LIQUIDATION_FEE_USD, Error::VaultStorageInvalidLiquidationFeeUsd);
 
         storage.tax_basis_points.write(tax_basis_points);
         storage.stable_tax_basis_points.write(stable_tax_basis_points);
@@ -265,26 +236,6 @@ impl VaultStorage for Contract {
     }
 
     #[storage(read, write)]
-    fn set_funding_rate(
-        funding_interval: u64,
-        funding_rate_factor: u64,
-        stable_funding_rate_factor: u64,
-    ) {
-        _only_gov();
-        require(funding_rate_factor <= MAX_FUNDING_RATE_FACTOR, Error::VaultStorageInvalidFundingRateFactor);
-        require(stable_funding_rate_factor <= MAX_FUNDING_RATE_FACTOR, Error::VaultStorageInvalidStableFundingRateFactor);
-
-        storage.funding_interval.write(funding_interval);
-        storage.funding_rate_factor.write(funding_rate_factor);
-        storage.stable_funding_rate_factor.write(stable_funding_rate_factor);
-        log(SetFundingRateInfo {
-            funding_interval,
-            funding_rate_factor,
-            stable_funding_rate_factor
-        });
-    }
-
-    #[storage(read, write)]
     fn set_asset_config(
         asset: AssetId,
         asset_decimals: u8,
@@ -295,11 +246,6 @@ impl VaultStorage for Contract {
         is_shortable: bool
     ) {
         _only_gov();
-
-        require(
-            asset.non_zero(),
-            Error::VaultStorageZeroAsset
-        );
 
         // increment token count for the first time
         if !storage.whitelisted_assets.get(asset).try_read().unwrap_or(false) {
@@ -340,7 +286,8 @@ impl VaultStorage for Contract {
         );
 
         // `asset_weights` is guaranteed to have a value, hence no need to gracefully unwrap
-        storage.total_asset_weights.write(storage.total_asset_weights.read() - storage.asset_weights.get(asset).read());
+        let prev_asset_weight = storage.asset_weights.get(asset).read();
+        storage.total_asset_weights.write(storage.total_asset_weights.read() - prev_asset_weight);
 
         storage.whitelisted_assets.remove(asset);
         storage.asset_decimals.remove(asset);
@@ -369,11 +316,6 @@ impl VaultStorage for Contract {
        / / /     \ V / | |  __/\ V  V / 
       /_/_/       \_/  |_|\___| \_/\_/  
     */
-    #[storage(read)]
-    fn is_initialized() -> bool {
-        storage.is_initialized.read()
-    }
-    
     #[storage(read)]
     fn has_dynamic_fees() -> bool {
         storage.has_dynamic_fees.read()
@@ -440,33 +382,20 @@ impl VaultStorage for Contract {
     }
 
     #[storage(read)]
-    fn get_funding_interval() -> u64 {
-        storage.funding_interval.read()
-    }
-
-    #[storage(read)]
-    fn get_funding_rate_factor() -> u64 {
-        storage.funding_rate_factor.read()
-    }
-
-    #[storage(read)]
-    fn get_stable_funding_rate_factor() -> u64 {
-        storage.stable_funding_rate_factor.read()
-    }
-
-    #[storage(read)]
     fn get_total_asset_weights() -> u64 {
         storage.total_asset_weights.read()
     }
 
     #[storage(read)]
     fn is_approved_router(account1: Account, account2: Account) -> bool {
-        storage.approved_routers.get(account1).get(account2).try_read().unwrap_or(false)
+        storage.approved_routers
+            .get(account1).get(account2).try_read().unwrap_or(false)
     }
 
     #[storage(read)]
     fn is_liquidator(account: Account) -> bool {
-        storage.is_liquidator.get(account).try_read().unwrap_or(false)
+        storage.is_liquidator
+            .get(account).try_read().unwrap_or(false)
     }
 
     #[storage(read)]
@@ -490,84 +419,126 @@ impl VaultStorage for Contract {
 
     #[storage(read)]
     fn is_asset_whitelisted(asset: AssetId) -> bool {
-        storage.whitelisted_assets.get(asset).try_read().unwrap_or(false)
+        storage.whitelisted_assets
+            .get(asset).try_read().unwrap_or(false)
     }
 
     #[storage(read)]
     fn get_asset_decimals(asset: AssetId) -> u8 {
-        storage.asset_decimals.get(asset).try_read().unwrap_or(0)
+        storage.asset_decimals
+            .get(asset).try_read().unwrap_or(0)
     }
 
     #[storage(read)]
     fn get_min_profit_basis_points(asset: AssetId) -> u64 {
-        storage.min_profit_basis_points.get(asset).try_read().unwrap_or(0)
+        storage.min_profit_basis_points
+            .get(asset).try_read().unwrap_or(0)
     }
 
     #[storage(read)]
     fn is_stable_asset(asset: AssetId) -> bool {
-        storage.stable_assets.get(asset).try_read().unwrap_or(false)
+        storage.stable_assets
+            .get(asset).try_read().unwrap_or(false)
     }
 
     #[storage(read)]
     fn is_shortable_asset(asset: AssetId) -> bool {
-        storage.shortable_assets.get(asset).try_read().unwrap_or(false)
+        storage.shortable_assets
+            .get(asset).try_read().unwrap_or(false)
     }
 
     #[storage(read)]
     fn get_asset_weight(asset: AssetId) -> u64 {
-        storage.asset_weights.get(asset).try_read().unwrap_or(0)
+        storage.asset_weights
+            .get(asset).try_read().unwrap_or(0)
     }
 
     #[storage(read)]
     fn get_max_rusd_amount(asset: AssetId) -> u256 {
-        storage.max_rusd_amounts.get(asset).try_read().unwrap_or(0)
-    }
-
-    #[storage(read)]
-    fn get_max_leverage() -> u64 {
-        storage.max_leverage.read()
-    }
-
-    #[storage(read)]
-    fn get_is_manager(account: Account) -> bool {
-        storage.is_manager.get(account).try_read().unwrap_or(false)
-    }
-
-    #[storage(read)]
-    fn get_asset_balance(asset: AssetId) -> u64 {
-        // this is not used at all. Removing this breaks compiler inlining however, so this 
-        // remains until a more stable compiler is available
-        0
+        storage.max_rusd_amounts
+            .get(asset).try_read().unwrap_or(0)
     }
 
     #[storage(read)]
     fn get_buffer_amounts(asset: AssetId) -> u256 {
-        storage.buffer_amounts.get(asset).try_read().unwrap_or(0)
+        storage.buffer_amounts
+            .get(asset).try_read().unwrap_or(0)
     }
 
     #[storage(read)]
     fn get_last_funding_times(asset: AssetId) -> u64 {
-        storage.last_funding_times.get(asset).try_read().unwrap_or(0)
+        storage.last_funding_times
+            .get(asset).try_read().unwrap_or(0)
     }
 
     #[storage(read)]
     fn get_position_by_key(position_key: b256) -> Position {
-        storage.positions.get(position_key).try_read().unwrap_or(Position::default())
+        storage.positions
+            .get(position_key).try_read().unwrap_or(Position::default())
     }
 
     #[storage(read)]
     fn get_fee_reserves(asset: AssetId) -> u256 {
-        storage.fee_reserves.get(asset).try_read().unwrap_or(0)
+        storage.fee_reserves
+            .get(asset).try_read().unwrap_or(0)
     }
 
     #[storage(read)]
     fn get_global_short_average_prices(asset: AssetId) -> u256 {
-        storage.global_short_average_prices.get(asset).try_read().unwrap_or(0)
+        storage.global_short_average_prices
+            .get(asset).try_read().unwrap_or(0)
     }
 
     #[storage(read)]
     fn get_max_global_short_sizes(asset: AssetId) -> u256 {
-        storage.max_global_short_sizes.get(asset).try_read().unwrap_or(0)
+        storage.max_global_short_sizes
+            .get(asset).try_read().unwrap_or(0)
+    }
+
+    #[storage(read)]
+    fn get_redemption_amount(
+        asset: AssetId, 
+        rusd_amount: u256
+    ) -> u256 {
+        _get_redemption_amount(asset, rusd_amount)
+    }
+
+    #[storage(read)]
+    fn get_target_rusd_amount(asset: AssetId) -> u256 {
+        _get_target_rusd_amount(asset)
+    }
+
+    #[storage(read)]
+    fn adjust_for_decimals(
+        amount: u256, 
+        asset_div: AssetId, 
+        asset_mul: AssetId
+    ) -> u256 {
+        _adjust_for_decimals(
+            amount,
+            asset_div,
+            asset_mul
+        )
+    }
+
+    #[storage(read)]
+    fn asset_to_usd_min(asset: AssetId, asset_amount: u256) -> u256 {
+        _asset_to_usd_min(asset, asset_amount)
+    }
+
+    #[storage(read)]
+    fn usd_to_asset_max(asset: AssetId, usd_amount: u256) -> u256 {
+        _usd_to_asset_max(asset, usd_amount)
+    }
+
+    #[storage(read)]
+    fn usd_to_asset_min(asset: AssetId, usd_amount: u256) -> u256 {
+        _usd_to_asset_min(asset, usd_amount)
+    }
+
+    #[storage(read)]
+    fn usd_to_asset(asset: AssetId, usd_amount: u256, price: u256) -> u256 {
+        _usd_to_asset(asset, usd_amount, price)
     }
 
     /*
@@ -578,12 +549,21 @@ impl VaultStorage for Contract {
       /_/_/    |_|    \__,_|_.__/|_|_|\___|
     */
     #[storage(write)]
-    fn set_router(router: Account, is_active: bool) {
-        storage.approved_routers.get(get_sender()).insert(router, is_active);
+    fn set_approved_router(
+        router: Account, 
+        is_active: bool
+    ) {
+        let sender = get_sender();
+        storage.approved_routers
+            .get(sender).insert(router, is_active);
+        log(SetApprovedRouter { sender, router, is_active });
     }
 
     #[storage(write)]
-    fn write_last_funding_time(asset: AssetId, last_funding_time: u64) {
+    fn write_last_funding_time(
+        asset: AssetId, 
+        last_funding_time: u64
+    ) {
         _only_write_authorized();
 
         storage.last_funding_times.insert(asset, last_funding_time);
@@ -591,7 +571,10 @@ impl VaultStorage for Contract {
     }
 
     #[storage(write)]
-    fn write_position(position_key: b256, position: Position) {
+    fn write_position(
+        position_key: b256, 
+        position: Position
+    ) {
         _only_write_authorized();
 
         storage.positions.insert(position_key, position);
@@ -599,7 +582,10 @@ impl VaultStorage for Contract {
     }
 
     #[storage(write)]
-    fn write_fee_reserve(asset: AssetId, fee_reserve: u256) {
+    fn write_fee_reserve(
+        asset: AssetId, 
+        fee_reserve: u256
+    ) {
         _only_write_authorized();
 
         storage.fee_reserves.insert(asset, fee_reserve);
@@ -607,7 +593,10 @@ impl VaultStorage for Contract {
     }
 
     #[storage(write)]
-    fn write_global_short_average_price(asset: AssetId, global_short_average_price: u256) {
+    fn write_global_short_average_price(
+        asset: AssetId, 
+        global_short_average_price: u256
+    ) {
         _only_write_authorized();
 
         storage.global_short_average_prices.insert(asset, global_short_average_price);
@@ -622,7 +611,6 @@ impl VaultStorage for Contract {
  / / /    | || | | | ||  __/ |  | | | | (_| | |
 /_/_/    |___|_| |_|\__\___|_|  |_| |_|\__,_|_|
 */
-
 #[storage(read)]
 fn _only_gov() {
     require(get_sender() == storage.gov.read(), Error::VaultStorageForbiddenNotGov);
@@ -631,7 +619,148 @@ fn _only_gov() {
 #[storage(read)]
 fn _only_write_authorized() {
     require(
-        storage.is_write_authorized.get(get_sender()).try_read().unwrap_or(false), 
+        storage.is_write_authorized
+            .get(get_sender()).try_read().unwrap_or(false), 
         Error::VaultStorageOnlyAuthorizedEntity
     );
+}
+
+#[storage(read, write)]
+fn _initialize(
+    gov: Account,
+    rusd_contr: ContractId,
+    rusd: AssetId,
+    pricefeed_provider: ContractId,
+) {
+    require(!storage.is_initialized.read(), Error::VaultStorageAlreadyInitialized);
+    storage.is_initialized.write(true);
+    
+    require(
+        rusd == AssetId::new(rusd_contr, ZERO),
+        Error::VaultStorageInvalidRUSDAsset
+    );
+
+    storage.gov.write(gov);
+    storage.rusd_contr.write(rusd_contr);
+    storage.rusd.write(rusd);
+    storage.pricefeed_provider.write(pricefeed_provider);
+
+    log(SetGov { gov });
+    log(SetPricefeedProvider { pricefeed: pricefeed_provider });
+}
+
+#[storage(read)]
+fn _get_redemption_amount(asset: AssetId, rusd_amount: u256) -> u256 {
+    let price = _get_max_price(asset);
+    let redemption_amount = rusd_amount * PRICE_PRECISION / price;
+
+    let rusd = storage.rusd.read();
+    _adjust_for_decimals(redemption_amount, rusd, asset)
+}
+
+#[storage(read)]
+fn _get_target_rusd_amount(asset: AssetId) -> u256 {
+    let supply = abi(RUSD, storage.rusd_contr.read().into()).total_supply();
+    if supply == 0 {
+        return 0;
+    }
+
+    let weight = storage.asset_weights.get(asset).try_read().unwrap_or(0);
+
+    (weight * supply / storage.total_asset_weights.read()).as_u256()
+}
+
+#[storage(read)]
+fn _adjust_for_decimals(
+    amount: u256, 
+    asset_div: AssetId, 
+    asset_mul: AssetId
+) -> u256 {
+    let rusd = storage.rusd.read();
+    let decimals_div = if asset_div == rusd {
+        RUSD_DECIMALS
+    } else {
+        storage.asset_decimals.get(asset_div).try_read().unwrap_or(0)
+    };
+
+    let decimals_mul = if asset_mul == rusd {
+        RUSD_DECIMALS
+    } else {
+        storage.asset_decimals.get(asset_mul).try_read().unwrap_or(0)
+    };
+
+    // this should fail if there's some weird stack overflow error
+    require(
+        decimals_div != 0 || decimals_mul != 0,
+        Error::VaultStorageDecimalsAreZero
+    );
+
+    amount * 10.pow(decimals_mul.as_u32()).as_u256() / 10.pow(decimals_div.as_u32()).as_u256()
+}
+
+#[storage(read)]
+fn _asset_to_usd_min(asset: AssetId, asset_amount: u256) -> u256 {
+    if asset_amount == 0 {
+        return 0;
+    }
+
+    let price = _get_min_price(asset);
+    let decimals = storage.asset_decimals.get(asset).try_read().unwrap_or(0);
+
+    (asset_amount * price) / 10.pow(decimals.as_u32()).as_u256()
+}
+
+#[storage(read)]
+fn _usd_to_asset_max(asset: AssetId, usd_amount: u256) -> u256 {
+    if usd_amount == 0 {
+        return 0;
+    }
+
+    // @notice this is CORRECT (asset_max -> get_min_price)
+    let price = _get_min_price(asset);
+
+    _usd_to_asset(asset, usd_amount, price)
+}
+
+#[storage(read)]
+fn _usd_to_asset_min(asset: AssetId, usd_amount: u256) -> u256 {
+    if usd_amount == 0 {
+        return 0;
+    }
+
+    // @notice this is CORRECT (asset_min -> get_max_price)
+    let price = _get_max_price(asset);
+
+    _usd_to_asset(asset, usd_amount, price)
+}
+
+#[storage(read)]
+fn _usd_to_asset(asset: AssetId, usd_amount: u256, price: u256) -> u256 {
+    require(price != 0, Error::VaultStoragePriceQueriedIsZero);
+
+    if usd_amount == 0 {
+        return 0;
+    }
+
+    let decimals = storage.asset_decimals.get(asset).try_read().unwrap_or(0);
+
+    (usd_amount * 10.pow(decimals.as_u32()).as_u256()) / price
+}
+
+#[storage(read)]
+fn _get_max_price(asset: AssetId) -> u256 {
+    let vault_pricefeed = abi(VaultPricefeed, storage.pricefeed_provider.read().into());
+    vault_pricefeed.get_price(
+        asset, 
+        true,
+    )
+}
+
+#[storage(read)]
+fn _get_min_price(asset: AssetId) -> u256 {
+    let vault_pricefeed = abi(VaultPricefeed, storage.pricefeed_provider.read().into());
+    vault_pricefeed.get_price(
+        asset, 
+        false,
+    )
 }

@@ -14,7 +14,8 @@ abi YieldAsset {
     fn initialize(
         name: String,
         symbol: String,
-        initial_supply: u64
+        initial_supply: u64,
+        staked_balance_handler: Address,
     );
 
     /*
@@ -28,6 +29,9 @@ abi YieldAsset {
     fn set_gov(new_gov: Account);
 
     #[storage(read, write)]
+    fn set_staked_balance_handler(staked_balance_handler: Address);
+
+    #[storage(read, write)]
     fn set_yield_trackers(yield_trackers: Vec<ContractId>);
 
     #[storage(read, write)]
@@ -37,39 +41,19 @@ abi YieldAsset {
     fn remove_admin(account: Account);
 
     #[storage(read, write)]
-    fn set_in_whitelist_mode(in_whitelist_mode: bool);
+    fn add_nonstaking_account(account: Account);
 
     #[storage(read, write)]
-    fn set_whitelisted_handler(handler: Account, is_whitelisted: bool);
-
-    #[storage(read, write)]
-    fn add_nonstaking_account(
-        account: Account,
-        // staked balance of the account
-        staked_balance: u256
-    );
-
-    #[storage(read, write)]
-    fn remove_nonstaking_account(
-        account: Account,
-        // staked balance of the account
-        staked_balance: u256
-    );
+    fn remove_nonstaking_account(account: Account);
 
     #[storage(read)]
     fn recover_claim(
         account: Account,
         receiver: Account,
-        // staked balance of the account
-        staked_balance: u256
     );
 
     #[storage(read)]
-    fn claim(
-        receiver: Account,
-        // staked balance of the account
-        staked_balance: u256
-    );
+    fn claim(receiver: Account);
 
     /*
           ____ __     ___               

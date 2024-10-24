@@ -40,7 +40,7 @@ abi YieldTracker {
     fn claimable(
         account: Account,
         // staked balance of the account
-        staked_balance: u256
+        yield_asset_staked_balance: u256
     ) -> u256;
 
     /*
@@ -54,7 +54,7 @@ abi YieldTracker {
     fn update_rewards(
         account: Account,
         // staked balance of the account
-        staked_balance: u256
+        yield_asset_staked_balance: u256
     );
 
     #[storage(read, write)]
@@ -62,6 +62,6 @@ abi YieldTracker {
         account: Account,
         receiver: Account,
         // staked balance of the account
-        staked_balance: u256
+        yield_asset_staked_balance: u256
     ) -> u256;
 }

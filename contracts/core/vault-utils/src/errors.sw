@@ -3,25 +3,23 @@ library;
 
 pub enum Error {
     VaultUtilsAlreadyInitialized: (),
-    VaultForbiddenNotGov: (),
+    VaultUtilsForbiddenNotGov: (),
     VaultUtilsForbiddenNotAuthorizedCaller: (),
 
-    VaultMaxRusdExceeded: (),
-    VaultMaxShortsExceeded: (),
-    VaultMaxLeverageExceeded: (),
-    VaultPoolAmountExceeded: (),
+    VaultUtilsMaxRusdExceeded: (),
+    VaultUtilsMaxShortsExceeded: (),
+    VaultUtilsMaxLeverageExceeded: (),
+    VaultUtilsPoolAmountExceeded: (),
 
-    VaultReserveExceedsPool: (),
-    VaultInvalidIncrease: (),
-    VaultInsufficientReserve: (),
+    VaultUtilsReserveExceedsPool: (),
+    VaultUtilsInvalidIncrease: (),
+    VaultUtilsInsufficientReserve: (),
 
-    VaultPriceQueriedIsZero: (),
+    VaultUtilsInvalidAveragePrice: (),
+    VaultUtilsLossesExceedCollateral: (),
+    VaultUtilsFeesExceedCollateral: (),
+    VaultUtilsLiquidationFeesExceedCollateral: (),
 
-    VaultInvalidPosition: (),
-    VaultInvalidAveragePrice: (),
-    VaultLossesExceedCollateral: (),
-    VaultFeesExceedCollateral: (),
-    VaultLiquidationFeesExceedCollateral: (),
-
-    VaultDecimalsAreZero: (),
+    VaultUtilsInvalidFundingRateFactor: (),
+    VaultUtilsInvalidStableFundingRateFactor: (),
 }

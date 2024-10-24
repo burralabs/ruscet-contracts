@@ -2,16 +2,16 @@
 library;
 
 pub enum Error {
-    YieldAssetAlreadyInitialized: (),
-    YieldAssetForbidden: (),
+    RUSDAlreadyInitialized: (),
     RUSDForbidden: (),
-    YieldAssetAccountNotMarked: (),
+    RUSDAccountNotMarked: (),
 
-    YieldAssetInvalidBurnAssetForwarded: (),
-    YieldAssetInvalidBurnAmountForwarded: (),
+    RUSDInvalidSignature: (),
+    RUSDMintZeroAmount: (),
 
-    YieldAssetMintToZeroAccount: (),
-    YieldAssetBurnFromZeroAccount: (),
-    YieldAssetApproveFromZeroAccount: (),
-    YieldAssetApproveToZeroAccount: (),
+    RUSDInvalidBurnAssetForwarded: (),
+    RUSDInvalidBurnAmountForwarded: (),
+
+    RUSDMintToZeroAccount: (),
+    RUSDBurnFromZeroAccount: (),
 }

@@ -2,12 +2,15 @@ import { AbstractAddress, Provider, WalletUnlocked } from "fuels"
 import { Fungible, Utils } from "../../types"
 import { getAssetId, toAsset } from "./asset"
 import { toContract } from "./account"
+import fs from "fs"
+import path from "path"
 
 export async function deploy(contract: string, wallet: WalletUnlocked, configurables: any = undefined) {
     const factory = require(`../../types/${contract}Factory.ts`)[`${contract}Factory`]
     if (!factory) {
         throw new Error(`Could not find factory for contract ${contract}`)
     }
+
     const { waitForResult } = await factory.deploy(wallet, configurables ? { configurableConstants: configurables } : undefined)
     const { contract: contr } = await waitForResult()
 

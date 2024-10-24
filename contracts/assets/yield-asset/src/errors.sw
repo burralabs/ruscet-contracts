@@ -10,8 +10,8 @@ pub enum Error {
     YieldAssetBurnFromZeroAccount: (),
     YieldAssetTransferFromZeroAccount: (),
     YieldAssetTransferToZeroAccount: (),
-    YieldAssetApproveFromZeroAccount: (),
-    YieldAssetApproveToZeroAccount: (),
+
+    YieldAssetInvalidSignature: (),
 
     YieldAssetMsgSenderNotWhitelisted: (),
     YieldAssetInsufficientAllowance: (),

@@ -29,7 +29,6 @@ impl Account {
 
 impl AssetId {
     pub fn non_zero(self) -> bool {
-        // self != AssetId::from(ZERO)
-        true
+        self != AssetId::from(ZERO)
     }
 }

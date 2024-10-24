@@ -6,23 +6,27 @@ import {
     TimeDistributor,
     Rusd,
     Utils,
-    Vault,
+    VaultRouter,
     VaultPricefeed,
     VaultStorage,
     VaultUtils,
+    Vault,
     YieldTracker,
+    VaultRusd,
+    VaultPosition,
 } from "../../../types"
 import { deploy, getBalance, getValStr, call } from "../../utils/utils"
-import { addrToAccount, contrToAccount, toContract } from "../../utils/account"
+import { addrToAccount, contrToAccount, toAddress, toContract } from "../../utils/account"
 import { expandDecimals, toPrice, toUsd } from "../../utils/units"
-import { getAssetId, toAsset, transfer } from "../../utils/asset"
+import { getAssetId, toAsset } from "../../utils/asset"
 import { useChai } from "../../utils/chai"
-import { getBnbConfig, getBtcConfig } from "../../utils/vault"
+import { BNB_MAX_LEVERAGE, BTC_MAX_LEVERAGE, getBnbConfig, getBtcConfig } from "../../utils/vault"
 import { WALLETS } from "../../utils/wallets"
+import { DECIMALS } from "../../utils/constants"
 
 use(useChai)
 
-describe("Vault.withdrawFees", function () {
+describe("VaultRouter.withdrawFees", function () {
     let attachedContracts: AbstractContract[]
     let deployer: WalletUnlocked
     let user0: WalletUnlocked
@@ -35,12 +39,14 @@ describe("Vault.withdrawFees", function () {
     let DAIPricefeed: Pricefeed
     let BTC: Fungible
     let BTCPricefeed: Pricefeed
-    let vault: Vault
+    let vaultRouter: VaultRouter
     let vaultStorage: VaultStorage
     let vaultUtils: VaultUtils
+    let vault: Vault
+    let vaultRusd: VaultRusd
+    let vaultPosition: VaultPosition
     let rusd: Rusd
     let RUSD: string // the RUSD fungible asset
-
     let vaultPricefeed: VaultPricefeed
     let timeDistributor: TimeDistributor
     let yieldTracker: YieldTracker
@@ -70,43 +76,83 @@ describe("Vault.withdrawFees", function () {
         await call(BTCPricefeed.functions.initialize(addrToAccount(deployer), "BTC Pricefeed"))
 
         /*
-            Vault + Router + RUSD
+            VaultRouter + Router + RUSD
         */
         utils = await deploy("Utils", deployer)
         vaultStorage = await deploy("VaultStorage", deployer)
         vaultUtils = await deploy("VaultUtils", deployer)
-        vault = await deploy("Vault", deployer, {
-            VAULT_STORAGE: toContract(vaultStorage),
-            VAULT_UTILS: toContract(vaultUtils),
-        })
+        vault = await deploy("Vault", deployer)
+        vaultRouter = await deploy("VaultRouter", deployer)
+        vaultRusd = await deploy("VaultRusd", deployer)
+        vaultPosition = await deploy("VaultPosition", deployer)
         vaultPricefeed = await deploy("VaultPricefeed", deployer)
         rusd = await deploy("Rusd", deployer)
         timeDistributor = await deploy("TimeDistributor", deployer)
         yieldTracker = await deploy("YieldTracker", deployer)
 
-        attachedContracts = [vaultUtils, vaultStorage]
+        attachedContracts = [vaultUtils, vaultStorage, vault, vaultRusd, vaultPosition, vaultPricefeed, rusd]
 
         RUSD = getAssetId(rusd)
 
-        await call(rusd.functions.initialize(toContract(vault)))
+        await call(rusd.functions.initialize(toContract(vaultRusd), toAddress(user0)))
 
         await call(
             vaultStorage.functions.initialize(
                 addrToAccount(deployer),
                 toContract(rusd),
                 toAsset(rusd), // RUSD native asset
-                toContract(rusd), // RUSD contract
                 toContract(vaultPricefeed),
-                toUsd(5), // liquidationFeeUsd
-                600, // fundingRateFactor
-                600, // stableFundingRateFactor
             ),
         )
-        await call(vaultUtils.functions.initialize(addrToAccount(deployer), toContract(vault), toContract(vaultStorage)))
-        await call(vault.functions.initialize(addrToAccount(deployer)))
-        await call(vaultStorage.functions.write_authorize(contrToAccount(vault), true))
+        await call(
+            vaultUtils.functions.initialize(
+                addrToAccount(deployer),
+                toContract(vaultRouter),
+                toContract(vaultStorage),
+                toContract(vault),
+            ),
+        )
+        await call(
+            vaultRouter.functions.initialize(
+                addrToAccount(deployer),
+                toContract(vaultStorage),
+                toContract(vaultUtils),
+                toContract(vault),
+                toContract(vaultRusd),
+                toContract(vaultPosition),
+            ),
+        )
+        await call(vaultStorage.functions.write_authorize(contrToAccount(vaultRouter), true))
         await call(vaultStorage.functions.write_authorize(contrToAccount(vaultUtils), true))
-        await call(vaultUtils.functions.write_authorize(contrToAccount(vault), true))
+        await call(vaultStorage.functions.write_authorize(contrToAccount(vaultRusd), true))
+        await call(vaultStorage.functions.write_authorize(contrToAccount(vaultPosition), true))
+
+        await call(vaultUtils.functions.write_authorize(contrToAccount(vaultRouter), true))
+        await call(vaultUtils.functions.write_authorize(contrToAccount(vaultRusd), true))
+        await call(vaultUtils.functions.write_authorize(contrToAccount(vaultPosition), true))
+
+        await call(vault.functions.initialize(addrToAccount(deployer)))
+        await call(vault.functions.set_vault(toContract(vaultRusd), true))
+        await call(vault.functions.set_vault(toContract(vaultPosition), true))
+
+        await call(
+            vaultRusd.functions.initialize(
+                addrToAccount(deployer),
+                toContract(vaultRouter),
+                toContract(vaultStorage),
+                toContract(vaultUtils),
+                toContract(vault),
+            ),
+        )
+        await call(
+            vaultPosition.functions.initialize(
+                addrToAccount(deployer),
+                toContract(vaultRouter),
+                toContract(vaultStorage),
+                toContract(vaultUtils),
+                toContract(vault),
+            ),
+        )
 
         await call(yieldTracker.functions.initialize(toContract(rusd)))
         await call(yieldTracker.functions.set_time_distributor(toContract(timeDistributor)))
@@ -117,17 +163,27 @@ describe("Vault.withdrawFees", function () {
         await call(rusd.functions.set_yield_trackers([{ bits: contrToAccount(yieldTracker).value }]))
 
         await call(vaultPricefeed.functions.initialize(addrToAccount(deployer)))
-        await call(vaultPricefeed.functions.set_asset_config(toAsset(BNB), toContract(BNBPricefeed), 8, false))
-        await call(vaultPricefeed.functions.set_asset_config(toAsset(DAI), toContract(DAIPricefeed), 8, false))
-        await call(vaultPricefeed.functions.set_asset_config(toAsset(BTC), toContract(BTCPricefeed), 8, false))
+        await call(vaultPricefeed.functions.set_asset_config(toAsset(BNB), toContract(BNBPricefeed), DECIMALS, false))
+        await call(vaultPricefeed.functions.set_asset_config(toAsset(DAI), toContract(DAIPricefeed), DECIMALS, false))
+        await call(vaultPricefeed.functions.set_asset_config(toAsset(BTC), toContract(BTCPricefeed), DECIMALS, false))
+
+        await call(
+            vaultUtils.functions.set_funding_rate(
+                8 * 3600, // funding_interval (8 hours)
+                600, // fundingRateFactor
+                600, // stableFundingRateFactor
+            ),
+        )
     })
 
     it("withdrawFees", async () => {
         await call(BNBPricefeed.functions.set_latest_answer(toPrice(300)))
         await call(vaultStorage.functions.set_asset_config(...getBnbConfig(BNB)))
+        await call(vaultUtils.functions.set_max_leverage(toAsset(BNB), BNB_MAX_LEVERAGE))
 
         await call(BTCPricefeed.functions.set_latest_answer(toPrice(60000)))
         await call(vaultStorage.functions.set_asset_config(...getBtcConfig(BTC)))
+        await call(vaultUtils.functions.set_max_leverage(toAsset(BTC), BTC_MAX_LEVERAGE))
 
         await call(BNB.functions.mint(addrToAccount(user0), expandDecimals(900)))
 
@@ -138,7 +194,7 @@ describe("Vault.withdrawFees", function () {
         expect(await getValStr(vaultUtils.functions.get_pool_amounts(toAsset(BNB)))).eq("0")
 
         await call(
-            vault
+            vaultRouter
                 .connect(user0)
                 .functions.buy_rusd(toAsset(BNB), addrToAccount(user1))
                 .addContracts(attachedContracts)
@@ -149,7 +205,7 @@ describe("Vault.withdrawFees", function () {
 
         expect(await getBalance(deployer, RUSD)).eq("0")
         expect(await getBalance(user1, RUSD)).eq("26919000000000") // 269,190 RUSD, 810 fee
-        expect(await getValStr(vaultStorage.functions.get_fee_reserves(toAsset(BNB)))).eq("270000000") // 2.7, 900 * 0.3%
+        expect(await getValStr(vaultStorage.functions.get_fee_reserves(toAsset(BNB)))).eq("270000000") // 2.7, DECIMALS00 * 0.3%
         expect(await getValStr(vaultUtils.functions.get_rusd_amount(toAsset(BNB)))).eq("26919000000000") // 269,190
         expect(await getValStr(vaultUtils.functions.get_pool_amounts(toAsset(BNB)))).eq("89730000000") // 897.3
         expect(await getValStr(rusd.functions.total_supply())).eq("26919000000000")
@@ -159,7 +215,7 @@ describe("Vault.withdrawFees", function () {
         await call(BTC.functions.mint(addrToAccount(user0), expandDecimals(2)))
 
         await call(
-            vault
+            vaultRouter
                 .as(user0)
                 .functions.buy_rusd(toAsset(BTC), addrToAccount(user1))
                 .addContracts(attachedContracts)
@@ -174,7 +230,7 @@ describe("Vault.withdrawFees", function () {
         await call(BTC.functions.mint(addrToAccount(user0), expandDecimals(2)))
 
         await call(
-            vault
+            vaultRouter
                 .connect(user0)
                 .functions.buy_rusd(toAsset(BTC), addrToAccount(user1))
                 .addContracts(attachedContracts)
@@ -189,7 +245,7 @@ describe("Vault.withdrawFees", function () {
         expect(await getValStr(vaultUtils.functions.get_pool_amounts(toAsset(BNB)))).eq("89730000000") // 897.3
 
         await call(
-            vault
+            vaultRouter
                 .connect(user0)
                 .functions.buy_rusd(toAsset(BNB), addrToAccount(user1))
                 .addContracts(attachedContracts)
@@ -204,16 +260,16 @@ describe("Vault.withdrawFees", function () {
         expect(await getValStr(vaultStorage.functions.get_fee_reserves(toAsset(BNB)))).eq("330000000") // 3.3 BNB
         expect(await getValStr(vaultStorage.functions.get_fee_reserves(toAsset(BTC)))).eq("1200000") // 0.012 BTC
 
-        await expect(vault.connect(user0).functions.withdraw_fees(toAsset(BNB), addrToAccount(user2)).call()).to.be.revertedWith(
-            "VaultForbiddenNotGov",
-        )
+        await expect(
+            vaultRouter.connect(user0).functions.withdraw_fees(toAsset(BNB), addrToAccount(user2)).call(),
+        ).to.be.revertedWith("VaultRouterForbiddenNotGov")
 
         expect(await getBalance(user2, BNB)).eq("0")
-        await call(vault.functions.withdraw_fees(toAsset(BNB), addrToAccount(user2)).addContracts(attachedContracts))
+        await call(vaultRouter.functions.withdraw_fees(toAsset(BNB), addrToAccount(user2)).addContracts(attachedContracts))
         expect(await getBalance(user2, BNB)).eq("330000000")
 
         expect(await getBalance(user2, BTC)).eq("0")
-        await call(vault.functions.withdraw_fees(toAsset(BTC), addrToAccount(user2)).addContracts(attachedContracts))
+        await call(vaultRouter.functions.withdraw_fees(toAsset(BTC), addrToAccount(user2)).addContracts(attachedContracts))
         expect(await getBalance(user2, BTC)).eq("1200000")
     })
 })

@@ -6,6 +6,10 @@ export type ContractId = {
     bits: string
 }
 
+export type AssetId = {
+    bits: string
+}
+
 export type Account = {
     value: string
     is_contract: boolean

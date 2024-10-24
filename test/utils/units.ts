@@ -1,4 +1,5 @@
 import { BigNumber } from "ethers"
+import { DECIMALS } from "./constants"
 
 // 18446744073709551615 // max(u64)
 // 340282366920938463463374607431768211455 // max(u128)
@@ -18,12 +19,11 @@ export function toNormalizedPrice(value: number): string {
     return toUsd(value)
 }
 
-export function toPrice(value: number, decimals: number = 8): string {
-    // console.log("[toPrice] Value:", parseInt((value * Math.pow(10, 8)) as any).toString())
+export function toPrice(value: number, decimals: number = DECIMALS): string {
     return parseInt((value * Math.pow(10, decimals)) as any).toString()
 }
 
-export function expandDecimals(num: string | number, decimals: number = 8): string {
+export function expandDecimals(num: string | number, decimals: number = DECIMALS): string {
     return BigNumber.from(num).mul(BigNumber.from(10).pow(decimals)).toString()
 }
 

@@ -4,56 +4,5 @@ library;
 pub enum Error {
     VaultForbiddenNotGov: (),
     VaultAlreadyInitialized: (),
-    VaultInvalidMsgCaller: (),
-    VaultReentrantCall: (),
-
-    VaultReceiverCannotBeZero: (),
-
-    VaultAssetNotWhitelisted: (),
-    VaultInvalidAssetAmount: (),
-    VaultInvalidRusdAmount: (),
-    VaultInvalidRedemptionAmount: (),
-
-    VaultInvalidAssetForwarded: (),
-
-    VaultInvalidAmountOut: (),
-
-    VaultInvalidMintAmountGtU64Max: (),
-    VaultInvalidRUSDBurnAmountGtU64Max: (),
-
-    VaultPoolAmountLtBuffer: (),
-
-    VaultInvalidAmountIn: (),
-
-    VaultAssetInNotWhitelisted: (),
-    VaultAssetOutNotWhitelisted: (),
-    VaultAssetsAreEqual: (),
-
-    VaultInsufficientCollateralForFees: (),
-
-    VaultAccountCannotBeZero: (),
-
-    VaultCollateralShouldBeWithdrawn: (),
-    VaultSizeMustBeMoreThanCollateral: (),
-    
-    VaultInvalidPosition: (),
-    VaultInvalidPositionSize: (),
-
-    VaultCollateralAssetNotWhitelisted: (),
-
-    VaultLongCollateralIndexAssetsMismatch: (),
-    VaultLongCollateralAssetMustNotBeStableAsset: (),
-
-    VaultShortCollateralAssetMustBeStableAsset: (),
-    VaultShortIndexAssetMustNotBeStableAsset: (),
-    VaultShortIndexAssetNotShortable: (),
-
-    VaultPositionCannotBeLiquidated: (),
-
-    VaultInvalidLiquidator: (),
-
-    VaultEmptyPosition: (),
-
-    VaultPositionSizeExceeded: (),
-    VaultPositionCollateralExceeded: (),
+    VaultForbiddenNotVaultRouter: ()
 }

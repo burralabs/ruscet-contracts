@@ -8,8 +8,7 @@ pub enum Error {
 
     RLPMintToZeroAccount: (),
     RLPBurnFromZeroAccount: (),
-    RLPApproveFromZeroAccount: (),
-    RLPApproveToZeroAccount: (),
+    RLPMintZeroAmount: (),
 
     RLPInvalidBurnAssetForwarded: (),
     RLPInvalidBurnAmountForwarded: (),

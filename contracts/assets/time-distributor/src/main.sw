@@ -39,9 +39,9 @@ storage {
     admin: Account = ZERO_ACCOUNT,
     is_initialized: bool = false,
     
-    reward_assets: StorageMap<Account, AssetId> = StorageMap::<Account, AssetId> {},
-    assets_per_interval: StorageMap<Account, u64> = StorageMap::<Account, u64> {},
-    last_distribution_time: StorageMap<Account, u64> = StorageMap::<Account, u64> {}
+    reward_assets: StorageMap<Account, AssetId> = StorageMap {},
+    assets_per_interval: StorageMap<Account, u64> = StorageMap {},
+    last_distribution_time: StorageMap<Account, u64> = StorageMap {}
 }
 
 impl TimeDistributor for Contract {

@@ -7,6 +7,20 @@ use helpers::{
 };
 use core_interfaces::vault_storage::Position;
 
+pub struct SetGov {
+    pub gov: Account,
+}
+
+pub struct SetRouter {
+    pub router: ContractId
+}
+
+pub struct SetApprovedRouter {
+    pub sender: Account,
+    pub router: Account,
+    pub is_active: bool,
+}
+
 pub struct SetAssetConfig {
     pub asset: AssetId,
     pub asset_decimals: u8,
@@ -19,12 +33,6 @@ pub struct SetAssetConfig {
 
 pub struct ClearAssetConfig {
     pub asset: AssetId,
-}
-
-pub struct SetFundingRateInfo {
-    pub funding_interval: u64,
-    pub funding_rate_factor: u64,
-    pub stable_funding_rate_factor: u64
 }
 
 pub struct SetMaxRusdAmount {
@@ -42,11 +50,6 @@ pub struct SetFees {
     pub liquidation_fee_usd: u256,
     pub min_profit_time: u64,
     pub has_dynamic_fees: bool
-}
-
-pub struct WriteAssetBalance {
-    pub asset: AssetId,
-    pub balance: u64,
 }
 
 pub struct WriteLastFundingTime {
@@ -84,21 +87,12 @@ pub struct SetLiquidator {
     pub is_active: bool,
 }
 
-pub struct SetManager {
-    pub manager: Account,
-    pub is_manager: bool,
-}
-
 pub struct SetBufferAmount {
     pub asset: AssetId,
     pub buffer_amount: u256,
 }
 
-pub struct SetMaxLeverage {
-    pub max_leverage: u64,
-}
-
-pub struct SetPricefeed {
+pub struct SetPricefeedProvider {
     pub pricefeed: ContractId,
 }
 
