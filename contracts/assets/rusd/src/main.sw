@@ -12,6 +12,7 @@ contract;
 */
 
 mod errors;
+mod events;
 
 use std::{
     asset::*,
@@ -33,11 +34,31 @@ use helpers::{
     transfer::*,
     zero::*,
 };
+use standards::{
+    src20::SRC20,
+    src3::SRC3,
+};
+use sway_libs::{
+    asset::{
+        base::{
+            _total_supply as sl_total_supply,
+        },
+        supply::{
+            _burn as sl_burn,
+            _mint as sl_mint,
+        },
+    },
+};
 use asset_interfaces::{
     rusd::RUSD,
+    yield_asset::YieldAsset,
     yield_tracker::YieldTracker
 };
 use errors::*;
+use events::*;
+
+const DECIMALS: u8 = 9;
+const DEFAULT_SUB_ID: SubId = SubId::zero();
 
 storage {
     /*
@@ -53,23 +74,20 @@ storage {
     
     name: StorageString = StorageString {},
     symbol: StorageString = StorageString {},
-    decimals: u8 = 8,
+    /// total supply of RUSD
+    /// only really 1 SubId is utilized for RUSD minting
+    total_supply: StorageMap<AssetId, u64> = StorageMap {},
+    /// value for this is ALWAYS 1
+    total_assets: u64 = 0,
 
-    total_supply: u64 = 0,
-
+    vaults: StorageMap<ContractId, bool> = StorageMap {},
     yield_trackers: StorageVec<ContractId> = StorageVec::<ContractId> {},
     non_staking_accounts: StorageMap<Account, bool> = StorageMap {},
+    non_staking_supply: u64 = 0,
     admins: StorageMap<Account, bool> = StorageMap {},
 
     in_whitelist_mode: bool = false,
-
     user_staked_balance: StorageMap<Account, u64> = StorageMap {},
-
-    vault_routers: StorageMap<ContractId, bool> = StorageMap {},
-}
-
-struct SetStakedBalanceHandler {
-    pub staked_balance_handler: Address
 }
 
 struct Message {
@@ -87,7 +105,7 @@ impl Hash for Message {
 impl RUSD for Contract {
     #[storage(read, write)]
     fn initialize(
-        vault_router: ContractId,
+        vault: ContractId,
         staked_balance_handler: Address
     ) {
         require(
@@ -99,17 +117,11 @@ impl RUSD for Contract {
         storage.name.write_slice(String::from_ascii_str("RUSD"));
         storage.symbol.write_slice(String::from_ascii_str("RUSD"));
         
-        storage.gov.write(get_sender());
-        storage.admins.insert(get_sender(), true);
-        storage.vault_routers.insert(vault_router, true);
-        // handler is responsible for updating the user's staked balance
-        // different from `gov` because this is a hot wallet solely for the purposes of signing staked balance updates
-        // if this handler is compromised, it would lead to incorrect rewards calculations which over time could
-        // add up, but are insignificant in the short term
-        // rather than having `gov` to be a hot wallet to sign messages on the go which increases the potential attack surface
-        storage.staked_balance_handler.write(staked_balance_handler);
-
-        log(SetStakedBalanceHandler { staked_balance_handler });
+        let sender = get_sender();
+        _set_gov(sender);
+        _set_admin(sender, true);
+        _set_vault(vault, true);
+        _set_staked_balance_handler(staked_balance_handler);
     }
 
     /*
@@ -120,57 +132,62 @@ impl RUSD for Contract {
       /_/_/    /_/   \_\__,_|_| |_| |_|_|_| |_|                         
     */
     #[storage(read, write)]
-    fn set_gov(new_gov: Account) {
+    fn set_vault(vault: ContractId, active: bool) {
         _only_gov();
-        storage.gov.write(new_gov);
+        _set_vault(vault, active);
     }
 
+    /*
+          ____ __     ___
+         / / / \ \   / (_) _____      __
+        / / /   \ \ / /| |/ _ \ \ /\ / /
+       / / /     \ V / | |  __/\ V  V /
+      /_/_/       \_/  |_|\___| \_/\_/
+    */
+    /// Returns the total supply of the RUSD asset
+    #[storage(read)]
+    fn total_rusd_supply() -> u64 {
+        storage.total_supply.get(_get_id()).try_read().unwrap_or(0)
+    }
+}
+
+impl YieldAsset for Contract {
+    /*
+          ____     _       _           _       
+         / / /    / \   __| |_ __ ___ (_)_ __  
+        / / /    / _ \ / _` | '_ ` _ \| | '_ \ 
+       / / /    / ___ \ (_| | | | | | | | | | |
+      /_/_/    /_/   \_\__,_|_| |_| |_|_|_| |_|                         
+    */
+    #[storage(read, write)]
+    fn set_gov(gov: Account) {
+        _only_gov();
+        _set_gov(gov);
+    }
+
+    /// handler responsible for updating the user's staked balance
+    /// different from `gov` because this is a hot wallet solely for the purposes of signing staked balance updates
+    /// if this handler is compromised, it would lead to incorrect rewards calculations which over time could
+    /// add up, but are insignificant in the short term
+    /// rather than having `gov` to be a hot wallet to sign messages on the go which increases the potential attack surface
     #[storage(read, write)]
     fn set_staked_balance_handler(staked_balance_handler: Address) {
         _only_gov();
-
-        storage.staked_balance_handler.write(staked_balance_handler);
-        log(SetStakedBalanceHandler { staked_balance_handler });
+        _set_staked_balance_handler(staked_balance_handler);
     }
 
     #[storage(read, write)]
     fn set_yield_trackers(yield_trackers: Vec<ContractId>) {
         _only_gov();
-        storage.yield_trackers.clear();
 
-        let mut i = 0;
-
-        let len = yield_trackers.len();
-        while i < len {
-            let yield_tracker = yield_trackers.get(i).unwrap();
-            storage.yield_trackers.push(yield_tracker);
-
-            i += 1;
-        }
+        storage.yield_trackers.store_vec(yield_trackers);
+        log(SetYieldTrackers { yield_trackers });
     }
 
     #[storage(read, write)]
-    fn add_admin(account: Account) {
+    fn set_admin(account: Account, active: bool) {
         _only_gov();
-        storage.admins.insert(account, true);
-    }
-
-    #[storage(read, write)]
-    fn remove_admin(account: Account) {
-        _only_gov();
-        storage.admins.remove(account);
-    }
-
-    #[storage(read, write)]
-    fn add_vault(vault_router: ContractId) {
-        _only_gov();
-        storage.vault_routers.insert(vault_router, true);
-    }
-
-    #[storage(read, write)]
-    fn remove_vault(vault_router: ContractId) {
-        _only_gov();
-        storage.vault_routers.remove(vault_router);
+        _set_admin(account, active);
     }
 
     #[storage(read, write)]
@@ -183,6 +200,7 @@ impl RUSD for Contract {
 
         _update_rewards(account);
         storage.non_staking_accounts.insert(account, true);
+        log(SetNonStakingAccount { account, active: true });
     }
 
     #[storage(read, write)]
@@ -196,10 +214,14 @@ impl RUSD for Contract {
         _update_rewards(account);
 
         storage.non_staking_accounts.remove(account);
+        log(SetNonStakingAccount { account, active: false });
     }
 
     #[storage(read)]
-    fn recover_claim(account: Account, receiver: Account) {
+    fn recover_claim(
+        account: Account,
+        receiver: Account
+    ) {
         _only_admin();
         let mut i = 0;
         let len = storage.yield_trackers.len();
@@ -228,57 +250,27 @@ impl RUSD for Contract {
         }
     }
 
-    #[storage(read, write)]
-    fn mint(account: Account, amount: u64) {
-        _only_authorized_vaults();
-        _mint(account, amount);
-    }
-
-    #[payable]
-    #[storage(read, write)]
-    fn burn(account: Account, amount: u64) {
-        _only_authorized_vaults();
-        _burn(account, amount);
-    }
-
     /*
-          ____ __     ___               
+          ____ __     ___
          / / / \ \   / (_) _____      __
         / / /   \ \ / /| |/ _ \ \ /\ / /
-       / / /     \ V / | |  __/\ V  V / 
-      /_/_/       \_/  |_|\___| \_/\_/  
+       / / /     \ V / | |  __/\ V  V /
+      /_/_/       \_/  |_|\___| \_/\_/
     */
+    /// Returns the AssetId of the `YieldAsset` asset
     fn get_id() -> AssetId {
-        AssetId::new(ContractId::this(), ZERO)
-    }
-
-    #[storage(read)]
-    fn name() -> Option<String> {
-        storage.name.read_slice()
-    }
-
-    #[storage(read)]
-    fn symbol() -> Option<String> {
-        storage.symbol.read_slice()
-    }
-
-    #[storage(read)]
-    fn decimals() -> u8 {
-        storage.decimals.read()
-    }
-
-    #[storage(read)]
-    fn total_supply() -> u64 {
-        storage.total_supply.read()
+        _get_id()
     }
 
     #[storage(read)]
     fn total_staked() -> u64 {
-        storage.total_supply.read()
+        // the total staked is the total supply of RUSD
+        // intentionally doesn't include any non-staking supply
+        storage.total_supply.get(_get_id()).try_read().unwrap_or(0)
     }
 
     /*
-          ____  ____        _     _ _      
+          ____  ____        _     _ _
          / / / |  _ \ _   _| |__ | (_) ___ 
         / / /  | |_) | | | | '_ \| | |/ __|
        / / /   |  __/| |_| | |_) | | | (__ 
@@ -296,6 +288,58 @@ impl RUSD for Contract {
     }
 }
 
+// https://docs.fuel.network/docs/sway-standards/src-20-native-asset/
+impl SRC20 for Contract {
+    #[storage(read)]
+    fn name(_asset: AssetId) -> Option<String> {
+        Some(storage.name.read_slice().unwrap())
+    }
+
+    #[storage(read)]
+    fn symbol(_asset: AssetId) -> Option<String> {
+        Some(storage.symbol.read_slice().unwrap())
+    }
+
+    #[storage(read)]
+    fn decimals(_asset: AssetId) -> Option<u8> {
+        Some(DECIMALS)
+    }
+
+    #[storage(read)]
+    fn total_supply(asset: AssetId) -> Option<u64> {
+        sl_total_supply(storage.total_supply, asset)
+    }
+
+    /// @dev only 1 DEFAULT_SUB_ID is utilized for RLP minting
+    #[storage(read)]
+    fn total_assets() -> u64 {
+        storage.total_assets.read()
+    }
+}
+
+// https://docs.fuel.network/docs/sway-standards/src-3-minting-and-burning/
+impl SRC3 for Contract {
+    #[storage(read, write)]
+    fn mint(
+        recipient: Identity,
+        _sub_id: SubId,
+        amount: u64
+    ) {
+        _only_authorized_vaults();
+        _mint(recipient, amount)
+    }
+
+    #[payable]
+    #[storage(read, write)]
+    fn burn(
+        _sub_id: SubId,
+        amount: u64
+    ) {
+        _only_authorized_vaults();
+        _burn(amount)
+    }
+}
+
 /*
     ____  ___       _                        _ 
    / / / |_ _|_ __ | |_ ___ _ __ _ __   __ _| |
@@ -309,6 +353,61 @@ fn _only_gov() {
         get_sender() == storage.gov.read(),
         Error::RUSDForbidden
     );
+}
+
+#[storage(read)]
+fn _only_admin() {
+    require(
+        storage.admins.get(get_sender()).try_read().unwrap_or(false),
+        Error::RUSDForbidden
+    );
+}
+
+#[storage(read)]
+fn _only_authorized_vaults() {
+    require(
+        storage.vaults.get(get_contract_or_revert()).try_read().unwrap_or(false),
+        Error::RUSDForbidden
+    );
+}
+
+#[storage(read, write)]
+fn _set_admin(account: Account, active: bool) {
+    if(active) {
+        storage.admins.insert(account, true);
+    } else {
+        storage.admins.remove(account);
+    }
+    log(SetAdmin { account, active });
+}
+
+#[storage(read, write)]
+fn _set_vault(vault: ContractId, active: bool) {
+    _only_gov();
+    
+    if(active) {
+        storage.vaults.insert(vault, true);
+    } else {
+        storage.vaults.remove(vault);
+    }
+    log(SetVault { vault, active });
+}
+
+#[storage(read, write)]
+fn _set_gov(gov: Account) {
+    storage.gov.write(gov);
+    log(SetGov { gov: gov });
+}
+
+#[storage(read, write)]
+fn _set_staked_balance_handler(staked_balance_handler: Address) {
+    storage.staked_balance_handler.write(staked_balance_handler);
+    log(SetStakedBalanceHandler { staked_balance_handler });
+}
+
+fn _get_id() -> AssetId {
+    // AssetId::new(ContractId::this(), DEFAULT_SUB_ID)
+    AssetId::default()
 }
 
 #[storage(read)]
@@ -332,67 +431,6 @@ fn _get_user_staked_balance(account: Account) -> u256 {
 }
 
 #[storage(read)]
-fn _only_admin() {
-    require(
-        storage.admins.get(get_sender()).try_read().unwrap_or(false),
-        Error::RUSDForbidden
-    );
-}
-
-#[storage(read)]
-fn _only_authorized_vaults() {
-    require(
-        storage.vault_routers.get(get_contract_or_revert()).try_read().unwrap_or(false),
-        Error::RUSDForbidden
-    );
-}
-
-#[storage(read, write)]
-fn _mint(
-    account: Account,
-    amount: u64
-) {
-    require(account.non_zero(), Error::RUSDMintToZeroAccount);
-    require(
-        amount > 0,
-        Error::RUSDMintZeroAmount
-    );
-
-    let staked_balance = _get_user_staked_balance(account);
-    _update_rewards(account);
-
-    storage.total_supply.write(storage.total_supply.read() + amount);
-
-    let identity = account_to_identity(account);
-
-    // sub-id: ZERO_B256
-    mint_to(identity, ZERO, amount);
-}
-
-#[storage(read, write)]
-fn _burn(
-    account: Account,
-    amount: u64
-) {
-    require(account.non_zero(), Error::RUSDBurnFromZeroAccount);
-    require(
-        msg_asset_id() == AssetId::new(ContractId::this(), ZERO),
-        Error::RUSDInvalidBurnAssetForwarded
-    );
-    require(
-        msg_amount() == amount && amount > 0,
-        Error::RUSDInvalidBurnAmountForwarded
-    );
-
-    let staked_balance = _get_user_staked_balance(account);
-    _update_rewards(account);
-
-    storage.total_supply.write(storage.total_supply.read() - amount);
-
-    burn(ZERO, amount);
-}
-
-#[storage(read)]
 fn _update_rewards(account: Account) {
     let mut i = 0;
     let len = storage.yield_trackers.len();
@@ -404,4 +442,42 @@ fn _update_rewards(account: Account) {
         abi(YieldTracker, yield_tracker.into()).update_rewards(account, staked_balance);
         i += 1;
     }
+}
+
+#[storage(read, write)]
+fn _mint(
+    recipient: Identity,
+    amount: u64
+) {
+    require(
+        amount > 0,
+        Error::RUSDMintZeroAmount
+    );
+    // require(recipient != ZERO_IDENTITY, Error::RUSDMintToZeroAccount);
+
+    let _ = sl_mint(
+        storage.total_assets,
+        storage.total_supply,
+        recipient,
+        DEFAULT_SUB_ID,
+        amount,
+    );
+}
+
+#[storage(read, write)]
+fn _burn(amount: u64) {
+    require(
+        msg_asset_id() == _get_id(),
+        Error::RUSDInvalidBurnAssetForwarded
+    );
+    require(
+        msg_amount() == amount,
+        Error::RUSDInvalidBurnAmountForwarded
+    );
+
+    sl_burn(
+        storage.total_supply,
+        DEFAULT_SUB_ID,
+        amount
+    );
 }

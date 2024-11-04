@@ -2,33 +2,15 @@
 library;
 
 use ::context::Account;
-use ::utils::{
-    ZERO,
-    ZERO_ADDRESS,
-    ZERO_CONTRACT,
-    ZERO_ACCOUNT
-};
 
-impl Address {
-    pub fn non_zero(self) -> bool {
-        self != ZERO_ADDRESS
-    }
-}
-
-impl ContractId {
-    pub fn non_zero(self) -> bool {
-        self != ZERO_CONTRACT
-    }
-}
+pub const ZERO = 0x0000000000000000000000000000000000000000000000000000000000000000;
+pub const ZERO_ADDRESS = Address::from(ZERO);
+pub const ZERO_CONTRACT = ContractId::from(ZERO);
+pub const ZERO_ASSET = AssetId::from(ZERO);
+pub const ZERO_ACCOUNT = Account::from(ZERO_ADDRESS);
 
 impl Account {
-    pub fn non_zero(self) -> bool {
-        self != ZERO_ACCOUNT
-    }
-}
-
-impl AssetId {
-    pub fn non_zero(self) -> bool {
-        self != AssetId::from(ZERO)
+    pub fn is_zero(self) -> bool {
+        self == ZERO_ACCOUNT
     }
 }

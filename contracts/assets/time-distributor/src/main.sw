@@ -26,7 +26,8 @@ use helpers::{
     time::get_unix_timestamp,
     context::*, 
     utils::*, 
-    transfer::*
+    transfer::*,
+    zero::*
 };
 use asset_interfaces::time_distributor::TimeDistributor;
 use errors::*;
@@ -142,11 +143,11 @@ impl TimeDistributor for Contract {
     }
 
     /*
-          ____ __     ___               
+          ____ __     ___
          / / / \ \   / (_) _____      __
         / / /   \ \ / /| |/ _ \ \ /\ / /
-       / / /     \ V / | |  __/\ V  V / 
-      /_/_/       \_/  |_|\___| \_/\_/  
+       / / /     \ V / | |  __/\ V  V /
+      /_/_/       \_/  |_|\___| \_/\_/
     */
     #[storage(read)]
     fn get_intervals(receiver: Account) -> u64 {
@@ -169,7 +170,7 @@ impl TimeDistributor for Contract {
     }
 
     /*
-          ____  ____        _     _ _      
+          ____  ____        _     _ _
          / / / |  _ \ _   _| |__ | (_) ___ 
         / / /  | |_) | | | | '_ \| | |/ __|
        / / /   |  __/| |_| | |_) | | | (__ 

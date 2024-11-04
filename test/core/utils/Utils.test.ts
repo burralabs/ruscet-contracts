@@ -1,5 +1,5 @@
 import { expect, use } from "chai"
-import { Provider, Wallet, WalletUnlocked } from "fuels"
+import { Provider, Signer, Wallet, WalletUnlocked } from "fuels"
 import { Utils } from "../../../types"
 import { deploy } from "../../utils/utils"
 import { useChai } from "../../utils/chai"
@@ -12,6 +12,7 @@ function convertTai64ToUnixTimestamp(tai64_time: string) {
 }
 
 describe("Utils", () => {
+    let priceUpdateSigner: Signer
     let deployer: WalletUnlocked
     let user0: WalletUnlocked
     let user1: WalletUnlocked
@@ -20,11 +21,11 @@ describe("Utils", () => {
     let utils: Utils
 
     beforeEach(async () => {
-        const FUEL_NETWORK_URL = "http://127.0.0.1:4000/v1/graphql"
-        const localProvider = await Provider.create(FUEL_NETWORK_URL)
+        const provider = await Provider.create("http://127.0.0.1:4000/v1/graphql")
 
-        const wallets = WALLETS.map((k) => Wallet.fromPrivateKey(k, localProvider))
+        const wallets = WALLETS.map((k) => Wallet.fromPrivateKey(k, provider))
         ;[deployer, user0, user1, user2, user3] = wallets
+        priceUpdateSigner = new Signer(WALLETS[0])
 
         utils = await deploy("Utils", deployer)
     })

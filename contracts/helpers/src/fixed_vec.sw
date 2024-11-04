@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 library;
 
-use ::utils::ZERO_ASSET;
+use ::zero::ZERO_ASSET;
 
 pub struct FixedVecAssetIdSize2 {
     len: u64,

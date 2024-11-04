@@ -10,6 +10,7 @@ contract;
 */
 
 mod errors;
+mod events;
 
 use std::{
     asset::{
@@ -29,10 +30,29 @@ use std::hash::*;
 use helpers::{
     context::*, 
     utils::*, 
-    transfer::*
+    transfer::*,
+    zero::*
+};
+use standards::{
+    src20::SRC20,
+    src3::SRC3,
+};
+use sway_libs::{
+    asset::{
+        base::{
+            _total_supply as sl_total_supply,
+        },
+        supply::{
+            _burn as sl_burn,
+            _mint as sl_mint,
+        },
+    },
 };
 use asset_interfaces::rlp::RLP;
 use errors::*;
+use events::*;
+const DECIMALS: u8 = 9;
+const DEFAULT_SUB_ID: SubId = SubId::zero();
 
 storage {
     gov: Account = ZERO_ACCOUNT,
@@ -40,11 +60,14 @@ storage {
     
     name: StorageString = StorageString {},
     symbol: StorageString = StorageString {},
-    decimals: u8 = 8,
 
-    total_supply: u64 = 0,
+    /// total supply of RLP
+    /// only really 1 SubId is utilized for RLP minting
+    total_supply: StorageMap<AssetId, u64> = StorageMap {},
+    /// value for this is ALWAYS 1
+    total_assets: u64 = 0,
 
-    minters: StorageMap<Account, bool> = StorageMap {},
+    approved_minters: StorageMap<Account, bool> = StorageMap {},
 }
 
 impl RLP for Contract {
@@ -54,14 +77,16 @@ impl RLP for Contract {
             !storage.is_initialized.read(), 
             Error::RLPAlreadyInitialized
         );
-
         storage.is_initialized.write(true);
 
         storage.name.write_slice(String::from_ascii_str("RLP"));
         storage.symbol.write_slice(String::from_ascii_str("RLP"));
         
-        storage.gov.write(get_sender());
-        storage.minters.insert(get_sender(), true);
+        let sender = get_sender();
+        storage.gov.write(sender);
+        storage.approved_minters.insert(sender, true);
+        log(SetGov { gov: sender });
+        log(SetApprovedMinter { minter: sender, is_active: true });
     }
 
     /*
@@ -72,71 +97,87 @@ impl RLP for Contract {
       /_/_/    /_/   \_\__,_|_| |_| |_|_|_| |_|                         
     */
     #[storage(read, write)]
-    fn set_gov(new_gov: Account) {
+    fn set_gov(gov: Account) {
         _only_gov();
-        storage.gov.write(new_gov);
+        storage.gov.write(gov);
+        log(SetGov { gov });
     }
 
     #[storage(read, write)]
     fn set_minter(minter: Account, is_active: bool) {
         _only_gov();
 
-        storage.minters.insert(minter, is_active);
+        storage.approved_minters.insert(minter, is_active);
+        log(SetApprovedMinter { minter, is_active });
     }
 
     /*
-          ____ __     ___               
+          ____ __     ___
          / / / \ \   / (_) _____      __
         / / /   \ \ / /| |/ _ \ \ /\ / /
-       / / /     \ V / | |  __/\ V  V / 
-      /_/_/       \_/  |_|\___| \_/\_/  
+       / / /     \ V / | |  __/\ V  V /
+      /_/_/       \_/  |_|\___| \_/\_/
     */
+    /// Returns the AssetId of the RLP token
     fn get_id() -> AssetId {
-        AssetId::new(ContractId::this(), ZERO)
+        _get_id()
+    }
+
+    /// Returns the total supply of the RLP asset
+    #[storage(read)]
+    fn total_rlp_supply() -> u64 {
+        storage.total_supply.get(_get_id()).try_read().unwrap_or(0)
+    }
+}
+
+// https://docs.fuel.network/docs/sway-standards/src-20-native-asset/
+impl SRC20 for Contract {
+    #[storage(read)]
+    fn name(_asset: AssetId) -> Option<String> {
+        Some(storage.name.read_slice().unwrap())
     }
 
     #[storage(read)]
-    fn id() -> String {
-        storage.symbol.read_slice().unwrap()
+    fn symbol(_asset: AssetId) -> Option<String> {
+        Some(storage.symbol.read_slice().unwrap())
     }
 
     #[storage(read)]
-    fn name() -> String {
-        storage.name.read_slice().unwrap()
+    fn decimals(_asset: AssetId) -> Option<u8> {
+        Some(DECIMALS)
     }
 
     #[storage(read)]
-    fn symbol() -> String {
-        storage.symbol.read_slice().unwrap()
+    fn total_supply(asset: AssetId) -> Option<u64> {
+        sl_total_supply(storage.total_supply, asset)
     }
 
+    /// @dev only 1 DEFAULT_SUB_ID is utilized for RLP minting
     #[storage(read)]
-    fn decimals() -> u8 {
-        storage.decimals.read()
+    fn total_assets() -> u64 {
+        storage.total_assets.read()
     }
+}
 
-    #[storage(read)]
-    fn total_supply() -> u64 {
-        storage.total_supply.read()
-    }
-
-    /*
-          ____  ____        _     _ _      
-         / / / |  _ \ _   _| |__ | (_) ___ 
-        / / /  | |_) | | | | '_ \| | |/ __|
-       / / /   |  __/| |_| | |_) | | | (__ 
-      /_/_/    |_|    \__,_|_.__/|_|_|\___|
-    */
+// https://docs.fuel.network/docs/sway-standards/src-3-minting-and-burning/
+impl SRC3 for Contract {
     #[storage(read, write)]
-    fn mint(account: Account, amount: u64) {
+    fn mint(
+        recipient: Identity,
+        _sub_id: SubId,
+        amount: u64
+    ) {
         _only_minter();
-        _mint(account, amount)
+        _mint(recipient, amount)
     }
 
     #[payable]
     #[storage(read, write)]
-    fn burn(account: Account, amount: u64) {
-        _burn(account, amount)
+    fn burn(
+        _sub_id: SubId,
+        amount: u64
+    ) {
+        _burn(amount)
     }
 }
 
@@ -158,39 +199,40 @@ fn _only_gov() {
 #[storage(read)]
 fn _only_minter() {
     require(
-        storage.minters.get(get_sender()).try_read().unwrap_or(false),
+        storage.approved_minters.get(get_sender()).try_read().unwrap_or(false),
         Error::RLPOnlyMinter
     );
 }
 
+fn _get_id() -> AssetId {
+    // AssetId::new(ContractId::this(), DEFAULT_SUB_ID)
+    AssetId::default()
+}
+
 #[storage(read, write)]
 fn _mint(
-    account: Account,
+    recipient: Identity,
     amount: u64
 ) {
     require(
         amount > 0,
         Error::RLPMintZeroAmount
     );
-    require(account != ZERO_ACCOUNT, Error::RLPMintToZeroAccount);
+    // require(recipient != ZERO_IDENTITY, Error::RLPMintToZeroAccount);
 
-    let identity = account_to_identity(account);
-
-    storage.total_supply.write(storage.total_supply.read() + amount);
-
-    // sub-id: ZERO_B256
-    mint_to(identity, ZERO, amount);
+    let _ = sl_mint(
+        storage.total_assets,
+        storage.total_supply,
+        recipient,
+        DEFAULT_SUB_ID,
+        amount,
+    );
 }
 
 #[storage(read, write)]
-fn _burn(
-    account: Account,
-    amount: u64
-) {
-    // @TODO: verify if the assets to be burned need to be forwarded to this call
-    require(account != ZERO_ACCOUNT, Error::RLPBurnFromZeroAccount);
+fn _burn(amount: u64) {
     require(
-        msg_asset_id() == AssetId::new(ContractId::this(), ZERO),
+        msg_asset_id() == _get_id(),
         Error::RLPInvalidBurnAssetForwarded
     );
     require(
@@ -198,8 +240,9 @@ fn _burn(
         Error::RLPInvalidBurnAmountForwarded
     );
 
-    storage.total_supply.write(storage.total_supply.read() - amount);
-
-    // sub-id: ZERO_B256
-    asset_burn(ZERO, amount);
+    sl_burn(
+        storage.total_supply,
+        DEFAULT_SUB_ID,
+        amount
+    );
 }

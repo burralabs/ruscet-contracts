@@ -1,5 +1,5 @@
 import { BN, BigNumberCoder, BooleanCoder, StructCoder, hexlify, keccak256, toB256 } from "fuels"
-import { VaultStorage, VaultUtils } from "../../types"
+import { Vault, VaultStorage, VaultUtils } from "../../types"
 import { getValue } from "./utils"
 import { Account, AssetId } from "./types"
 
@@ -26,7 +26,7 @@ const PositionKeyStructEncoder = new StructCoder("Key", {
 })
 
 export async function getPositionLeverage(
-    vaultStorage: VaultStorage,
+    vault: Vault,
     account: { value: string; is_contract: boolean },
     collateral_asset: { bits: string },
     index_asset: { bits: string },
@@ -35,10 +35,10 @@ export async function getPositionLeverage(
     const positionKeyStruct = { account, collateral_asset, index_asset, is_long }
     const positionKey = hexlify(keccak256(PositionKeyStructEncoder.encode(positionKeyStruct)))
 
-    const position = await getValue(vaultStorage.functions.get_position_by_key(positionKey))
+    const position = await getValue(vault.functions.get_position_by_key(positionKey))
 
     if (position.collateral.toString() === "0") {
-        throw new Error("VaultRouterInvalidPositionSize")
+        throw new Error("VaultInvalidPositionSize")
     }
 
     const positionLeverage = new BN(position.size).mul(10000).div(position.collateral)
@@ -51,10 +51,10 @@ export async function getPosition(
     collateral_asset: AssetId,
     index_asset: AssetId,
     is_long: boolean,
-    vaultStorage: VaultStorage,
+    vault: Vault,
 ) {
     const positionKeyStruct = { account, collateral_asset, index_asset, is_long }
     const positionKey = hexlify(keccak256(PositionKeyStructEncoder.encode(positionKeyStruct)))
 
-    return await getValue(vaultStorage.functions.get_position_by_key(positionKey))
+    return await getValue(vault.functions.get_position_by_key(positionKey))
 }

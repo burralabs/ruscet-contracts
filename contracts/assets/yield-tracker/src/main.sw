@@ -24,7 +24,6 @@ use std::{
 };
 use std::hash::*;
 use helpers::{
-    math::*,
     zero::*,
     context::*, 
     utils::*, 
@@ -85,11 +84,11 @@ impl YieldTracker for Contract {
     }
 
     /*
-          ____ __     ___               
+          ____ __     ___
          / / / \ \   / (_) _____      __
         / / /   \ \ / /| |/ _ \ \ /\ / /
-       / / /     \ V / | |  __/\ V  V / 
-      /_/_/       \_/  |_|\___| \_/\_/  
+       / / /     \ V / | |  __/\ V  V /
+      /_/_/       \_/  |_|\___| \_/\_/
     */
     #[storage(read)]
     fn get_assets_per_interval() -> u64 {
@@ -123,11 +122,11 @@ impl YieldTracker for Contract {
             storage.cumulative_reward_per_asset.read() + (pending_rewards / total_staked);
 
         storage.claimable_reward.get(account).try_read().unwrap_or(0) + (
-            yield_asset_staked_balance.mul(
+            yield_asset_staked_balance.multiply(
                 next_cumulative_reward_per_asset - 
                 storage.previous_cumulated_reward_per_asset.get(account)
                     .try_read().unwrap_or(0)
-            )/ PRECISION
+            ) / PRECISION
         )
     }
 
@@ -197,7 +196,7 @@ fn _update_rewards(
     let yield_asset = abi(YieldAsset, storage.yield_asset.read().into());
     let mut block_reward: u256 = 0;
 
-    if storage.time_distributor.read().non_zero() {
+    if !storage.time_distributor.read().is_zero() {
         block_reward = abi(
             TimeDistributor, 
             storage.time_distributor.read().into()

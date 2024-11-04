@@ -3,6 +3,7 @@ library;
 
 use std::auth::msg_sender;
 use ::context::*;
+use ::zero::*;
 
 /*
   ____                _              _       
@@ -11,12 +12,6 @@ use ::context::*;
 | |__| (_) | | | \__ \ || (_| | | | | |_\__ \
  \____\___/|_| |_|___/\__\__,_|_| |_|\__|___/
 */
-pub const ZERO = 0x0000000000000000000000000000000000000000000000000000000000000000;
-pub const ZERO_ADDRESS = Address::from(ZERO);
-pub const ZERO_CONTRACT = ContractId::from(ZERO);
-pub const ZERO_ASSET = AssetId::from(ZERO);
-pub const ZERO_ACCOUNT = Account::from(ZERO_ADDRESS);
-
 // enum Error {
 //     ExpectedCallerToBeEOA: (),
 //     ExpectedCallerToBeContract: (),

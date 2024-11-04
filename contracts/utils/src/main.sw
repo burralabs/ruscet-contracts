@@ -31,11 +31,6 @@ abi Utils {
 		contr: ContractId
 	) -> bool;
 
-	fn update_price_data(
-		vault_pricefeed_: ContractId,
-		price_update_data: Vec<PriceUpdateData>
-	);
-
 	fn get_position_key(
 		account: Account,
 		collateral_asset: AssetId,
@@ -118,20 +113,6 @@ impl Utils for Contract {
 		);
 
 		true
-	}
-
-	fn update_price_data(
-		vault_pricefeed_: ContractId,
-		price_update_data: Vec<PriceUpdateData>
-	) {
-		let vault_pricefeed = abi(VaultPricefeed, vault_pricefeed_.into());
-		let mut i = 0;
-		let _len = price_update_data.len();
-		while i < _len {
-			let data = price_update_data.get(i).unwrap();
-			vault_pricefeed.update_price(data.asset_id, data.price);
-			i += 1;
-		}
 	}
 
 	fn get_position_key(

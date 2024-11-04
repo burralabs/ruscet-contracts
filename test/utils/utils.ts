@@ -45,13 +45,13 @@ export async function getBalance(
     utils: Utils | undefined = undefined,
 ) {
     const FUEL_NETWORK_URL = "http://127.0.0.1:4000/v1/graphql"
-    const localProvider = await Provider.create(FUEL_NETWORK_URL)
+    const provider = await Provider.create(FUEL_NETWORK_URL)
 
     if (account instanceof WalletUnlocked) {
         if (typeof fungibleAsset === "string") {
-            return (await localProvider.getBalance(account.address, fungibleAsset)).toString()
+            return (await provider.getBalance(account.address, fungibleAsset)).toString()
         }
-        return (await localProvider.getBalance(account.address, getAssetId(fungibleAsset))).toString()
+        return (await provider.getBalance(account.address, getAssetId(fungibleAsset))).toString()
     }
 
     if (!utils) {
@@ -66,9 +66,7 @@ export async function getBalance(
 
     arg = toAsset(fungibleAsset)
 
-    const { value } = await (await utils.functions.get_contr_balance(toContract(account), arg).call()).waitForResult()
-
-    return value.toString()
+    return (await provider.getContractBalance(toContract(account).bits, arg.bits)).toString()
 }
 
 export async function getValue(call: any) {
@@ -82,6 +80,7 @@ export async function getValStr(call: any) {
 
 export async function call(fnCall: any) {
     const { gasUsed } = await fnCall.getTransactionCost()
+    // console.log("gasUsed", gasUsed.toString())
     const gasLimit = gasUsed.mul("6").div("5").toString()
 
     const { waitForResult } = await fnCall.txParams({ gasLimit }).call()

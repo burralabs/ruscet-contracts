@@ -1,20 +1,16 @@
 import { BigNumber } from "ethers"
-import { Fungible, VaultRouter, Vault, VaultStorage, VaultUtils } from "../../types"
+import { Fungible, VaultRouter, VaultLiquidityPool, VaultStorage, VaultUtils, Vault } from "../../types"
 import { toContract } from "./account"
 import { toAsset } from "./asset"
+import { Provider } from "fuels"
 
-export async function validateVaultRouterBalance(
-    expect: any,
-    vault: Vault,
-    vaultStorage: VaultStorage,
-    vaultUtils: VaultUtils,
-    token: Fungible,
-    offset: number | string = 0,
-) {
-    const poolAmount = (await vaultUtils.functions.get_pool_amounts(toAsset(token)).get()).value
-    const feeReserve = (await vaultStorage.functions.get_fee_reserves(toAsset(token)).get()).value
-    const balance = (await token.functions.get_balance(toContract(vault)).get()).value.toString()
-    let amount = poolAmount.add(feeReserve)
+export async function validateVaultBalance(expect: any, vault: Vault, token: Fungible, offset: number | string = 0) {
+    const provider = await Provider.create("http://127.0.0.1:4000/v1/graphql")
+
+    const poolAmount = (await vault.functions.get_pool_amounts(toAsset(token)).get()).value
+    const feeReserve = (await vault.functions.get_fee_reserves(toAsset(token)).get()).value
+    const balance = (await provider.getContractBalance(toContract(vault).bits, toAsset(token).bits)).toString()
+    // let amount = poolAmount.add(feeReserve)
     // console.log("Balance:", balance)
     expect(BigNumber.from(balance).gt(0)).to.be.true
     expect(poolAmount.add(feeReserve).add(offset).toString()).eq(balance)
@@ -30,7 +26,7 @@ export const BNB_MAX_LEVERAGE = 50 * 10_000
 export function getDaiConfig(fungible: Fungible): [{ bits: string }, number, number, number, number, boolean, boolean] {
     return [
         toAsset(fungible), // asset
-        8, // asset_decimals
+        9, // asset_decimals
         10000, // asset_weight
         75, // min_profit_bps
         0, // max_rusd_amount
@@ -42,7 +38,7 @@ export function getDaiConfig(fungible: Fungible): [{ bits: string }, number, num
 export function getBtcConfig(fungible: Fungible): [{ bits: string }, number, number, number, number, boolean, boolean] {
     return [
         toAsset(fungible), // asset
-        8, // asset_decimals
+        9, // asset_decimals
         10000, // asset_weight
         75, // min_profit_bps
         0, // max_rusd_amount
@@ -54,7 +50,7 @@ export function getBtcConfig(fungible: Fungible): [{ bits: string }, number, num
 export function getEthConfig(fungible: Fungible): [{ bits: string }, number, number, number, number, boolean, boolean] {
     return [
         toAsset(fungible), // asset
-        8, // asset_decimals (@TODO: actually: 18)
+        9, // asset_decimals
         10000, // asset_weight
         75, // min_profit_bps
         0, // max_rusd_amount
@@ -66,7 +62,7 @@ export function getEthConfig(fungible: Fungible): [{ bits: string }, number, num
 export function getBnbConfig(fungible: Fungible): [{ bits: string }, number, number, number, number | string, boolean, boolean] {
     return [
         toAsset(fungible), // asset
-        8, // asset_decimals (@TODO: actually: 18)
+        9, // asset_decimals
         10000, // asset_weight
         75, // min_profit_bps
         0, // max_rusd_amount

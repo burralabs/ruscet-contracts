@@ -5,16 +5,15 @@ pub enum Error {
     VaultPriceFeedAlreadyInitialized: (),
     VaultPriceFeedForbidden: (),
 
-    VaultPriceFeedInvalidAdjustmentBps: (),
-    VaultPriceFeedInvalidSpreadBasisPoints: (),
-    VaultPriceFeedInvalidPriceSampleSpace: (),
-
     VaultPriceFeedInvalidPrice: (),
     VaultPriceFeedInvalidPriceFeed: (),
     VaultPriceFeedInvalidPriceFeedToUpdate: (),
 
-    VaultPriceFeedInvalidPriceIEq0: (),
-    VaultPriceFeedInvalidPriceINeq0: (),
+    VaultPriceFeedPriceIsAhead: (),
+    VaultPriceFeedPriceIsStale: (),
 
     VaultPriceFeedCouldNotFetchPrice: (),
+
+    VaultPriceFeedInvalidSignature: (),
+    
 }

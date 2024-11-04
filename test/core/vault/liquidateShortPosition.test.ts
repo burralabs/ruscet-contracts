@@ -1,21 +1,6 @@
 import { expect, use } from "chai"
-import { AbstractContract, Provider, Wallet, WalletUnlocked } from "fuels"
-import {
-    Fungible,
-    Rlp,
-    Pricefeed,
-    TimeDistributor,
-    Rusd,
-    Utils,
-    VaultRouter,
-    VaultPricefeed,
-    VaultStorage,
-    VaultUtils,
-    Vault,
-    YieldTracker,
-    VaultRusd,
-    VaultPosition,
-} from "../../../types"
+import { AbstractContract, Provider, Signer, Wallet, WalletUnlocked } from "fuels"
+import { Fungible, Rlp, TimeDistributor, Rusd, Utils, VaultPricefeed, YieldTracker, Vault } from "../../../types"
 import { deploy, getBalance, getValue, getValStr, formatObj, call } from "../../utils/utils"
 import { addrToAccount, contrToAccount, toAddress, toContract } from "../../utils/account"
 import { expandDecimals, toNormalizedPrice, toPrice, toUsd } from "../../utils/units"
@@ -29,16 +14,17 @@ import {
     getBnbConfig,
     getBtcConfig,
     getDaiConfig,
-    validateVaultRouterBalance,
+    validateVaultBalance,
 } from "../../utils/vault"
 import { WALLETS } from "../../utils/wallets"
 import { getPosition } from "../../utils/contract"
-import { DECIMALS } from "../../utils/constants"
+import { BNB_PRICEFEED_ID, BTC_PRICEFEED_ID, DAI_PRICEFEED_ID, getUpdatePriceDataCall } from "../../utils/mock-pyth"
 
 use(useChai)
 
-describe("VaultRouter.liquidateShortPosition", function () {
+describe("Vault.liquidateShortPosition", function () {
     let attachedContracts: AbstractContract[]
+    let priceUpdateSigner: Signer
     let deployer: WalletUnlocked
     let user0: WalletUnlocked
     let user1: WalletUnlocked
@@ -46,17 +32,9 @@ describe("VaultRouter.liquidateShortPosition", function () {
     let user3: WalletUnlocked
     let utils: Utils
     let BNB: Fungible
-    let BNBPricefeed: Pricefeed
     let DAI: Fungible
-    let DAIPricefeed: Pricefeed
     let BTC: Fungible
-    let BTCPricefeed: Pricefeed
-    let vaultRouter: VaultRouter
-    let vaultStorage: VaultStorage
-    let vaultUtils: VaultUtils
     let vault: Vault
-    let vaultRusd: VaultRusd
-    let vaultPosition: VaultPosition
     let rusd: Rusd
 
     let vaultPricefeed: VaultPricefeed
@@ -65,104 +43,35 @@ describe("VaultRouter.liquidateShortPosition", function () {
     let rlp: Rlp
 
     beforeEach(async () => {
-        const FUEL_NETWORK_URL = "http://127.0.0.1:4000/v1/graphql"
-        const localProvider = await Provider.create(FUEL_NETWORK_URL)
+        const provider = await Provider.create("http://127.0.0.1:4000/v1/graphql")
 
-        const wallets = WALLETS.map((k) => Wallet.fromPrivateKey(k, localProvider))
+        const wallets = WALLETS.map((k) => Wallet.fromPrivateKey(k, provider))
         ;[deployer, user0, user1, user2, user3] = wallets
+        priceUpdateSigner = new Signer(WALLETS[0])
 
         /*
             NativeAsset + Pricefeed
         */
         BNB = await deploy("Fungible", deployer)
-        BNBPricefeed = await deploy("Pricefeed", deployer)
-
         DAI = await deploy("Fungible", deployer)
-        DAIPricefeed = await deploy("Pricefeed", deployer)
-
         BTC = await deploy("Fungible", deployer)
-        BTCPricefeed = await deploy("Pricefeed", deployer)
-
-        await call(BNBPricefeed.functions.initialize(addrToAccount(deployer), "BNB Pricefeed"))
-        await call(DAIPricefeed.functions.initialize(addrToAccount(deployer), "DAI Pricefeed"))
-        await call(BTCPricefeed.functions.initialize(addrToAccount(deployer), "BTC Pricefeed"))
 
         /*
-            VaultRouter + Router + RUSD
+            Vault + Router + RUSD
         */
         utils = await deploy("Utils", deployer)
-        vaultStorage = await deploy("VaultStorage", deployer)
-        vaultUtils = await deploy("VaultUtils", deployer)
         vault = await deploy("Vault", deployer)
-        vaultRouter = await deploy("VaultRouter", deployer)
-        vaultRusd = await deploy("VaultRusd", deployer)
-        vaultPosition = await deploy("VaultPosition", deployer)
         vaultPricefeed = await deploy("VaultPricefeed", deployer)
         rusd = await deploy("Rusd", deployer)
         timeDistributor = await deploy("TimeDistributor", deployer)
         yieldTracker = await deploy("YieldTracker", deployer)
         rlp = await deploy("Rlp", deployer)
-        attachedContracts = [vaultUtils, vaultStorage, vault, vaultRusd, vaultPosition, vaultPricefeed, rusd]
+        attachedContracts = [vault, vaultPricefeed, rusd]
 
-        await call(rusd.functions.initialize(toContract(vaultRusd), toAddress(user0)))
+        await call(rusd.functions.initialize(toContract(vault), toAddress(user0)))
 
-        await call(
-            vaultStorage.functions.initialize(
-                addrToAccount(deployer),
-                toContract(rusd),
-                toAsset(rusd), // RUSD native asset
-                toContract(vaultPricefeed),
-            ),
-        )
-        await call(
-            vaultUtils.functions.initialize(
-                addrToAccount(deployer),
-                toContract(vaultRouter),
-                toContract(vaultStorage),
-                toContract(vault),
-            ),
-        )
-        await call(
-            vaultRouter.functions.initialize(
-                addrToAccount(deployer),
-                toContract(vaultStorage),
-                toContract(vaultUtils),
-                toContract(vault),
-                toContract(vaultRusd),
-                toContract(vaultPosition),
-            ),
-        )
-        await call(vaultStorage.functions.write_authorize(contrToAccount(vaultRouter), true))
-        await call(vaultStorage.functions.write_authorize(contrToAccount(vaultUtils), true))
-        await call(vaultStorage.functions.write_authorize(contrToAccount(vaultRusd), true))
-        await call(vaultStorage.functions.write_authorize(contrToAccount(vaultPosition), true))
-
-        await call(vaultUtils.functions.write_authorize(contrToAccount(vaultRouter), true))
-        await call(vaultUtils.functions.write_authorize(contrToAccount(vaultRusd), true))
-        await call(vaultUtils.functions.write_authorize(contrToAccount(vaultPosition), true))
-
-        await call(vault.functions.initialize(addrToAccount(deployer)))
-        await call(vault.functions.set_vault(toContract(vaultRusd), true))
-        await call(vault.functions.set_vault(toContract(vaultPosition), true))
-
-        await call(
-            vaultRusd.functions.initialize(
-                addrToAccount(deployer),
-                toContract(vaultRouter),
-                toContract(vaultStorage),
-                toContract(vaultUtils),
-                toContract(vault),
-            ),
-        )
-        await call(
-            vaultPosition.functions.initialize(
-                addrToAccount(deployer),
-                toContract(vaultRouter),
-                toContract(vaultStorage),
-                toContract(vaultUtils),
-                toContract(vault),
-            ),
-        )
+        await call(vault.functions.initialize(addrToAccount(deployer), toAsset(rusd), toContract(rusd)))
+        await call(vault.functions.set_pricefeed_provider(toContract(vaultPricefeed)))
 
         await call(yieldTracker.functions.initialize(toContract(rusd)))
         await call(yieldTracker.functions.set_time_distributor(toContract(timeDistributor)))
@@ -172,13 +81,13 @@ describe("VaultRouter.liquidateShortPosition", function () {
         await call(BNB.functions.mint(contrToAccount(timeDistributor), 5000))
         await call(rusd.functions.set_yield_trackers([{ bits: contrToAccount(yieldTracker).value }]))
 
-        await call(vaultPricefeed.functions.initialize(addrToAccount(deployer)))
-        await call(vaultPricefeed.functions.set_asset_config(toAsset(BNB), toContract(BNBPricefeed), DECIMALS, false))
-        await call(vaultPricefeed.functions.set_asset_config(toAsset(DAI), toContract(DAIPricefeed), DECIMALS, false))
-        await call(vaultPricefeed.functions.set_asset_config(toAsset(BTC), toContract(BTCPricefeed), DECIMALS, false))
+        await call(vaultPricefeed.functions.initialize(addrToAccount(deployer), toAddress(deployer)))
+        await call(vaultPricefeed.functions.set_asset_config(toAsset(BNB), BNB_PRICEFEED_ID, 9))
+        await call(vaultPricefeed.functions.set_asset_config(toAsset(DAI), DAI_PRICEFEED_ID, 9))
+        await call(vaultPricefeed.functions.set_asset_config(toAsset(BTC), BTC_PRICEFEED_ID, 9))
 
         await call(
-            vaultUtils.functions.set_funding_rate(
+            vault.functions.set_funding_rate(
                 8 * 3600, // funding_interval (8 hours)
                 600, // fundingRateFactor
                 600, // stableFundingRateFactor
@@ -190,49 +99,49 @@ describe("VaultRouter.liquidateShortPosition", function () {
 
     it("liquidate short", async () => {
         await call(
-            vaultStorage.functions.set_fees(
-                50, // _taxBasisPoints
-                10, // _stableTaxBasisPoints
-                4, // _mintBurnFeeBasisPoints
-                30, // _swapFeeBasisPoints
-                4, // _stableSwapFeeBasisPoints
-                10, // _marginFeeBasisPoints
-                toUsd(5), // _liquidationFeeUsd
-                0, // _minProfitTime
-                false, // _hasDynamicFees
+            vault.functions.set_fees(
+                50, // tax_basis_points
+                10, // stable_tax_basis_points
+                4, // mint_burn_fee_basis_points
+                30, // swap_fee_basis_points
+                4, // stable_swap_fee_basis_points
+                10, // margin_fee_basis_points
+                toUsd(5), // liquidation_fee_usd
+                0, // min_profit_time
+                false, // has_dynamic_fees
             ),
         )
 
-        await call(BNBPricefeed.functions.set_latest_answer(toPrice(300)))
-        await call(vaultStorage.functions.set_asset_config(...getBnbConfig(BNB)))
-        await call(vaultUtils.functions.set_max_leverage(toAsset(BNB), BNB_MAX_LEVERAGE))
+        await call(getUpdatePriceDataCall(toAsset(BNB), toPrice(300), vaultPricefeed, priceUpdateSigner))
+        await call(vault.functions.set_asset_config(...getBnbConfig(BNB)))
+        await call(vault.functions.set_max_leverage(toAsset(BNB), BNB_MAX_LEVERAGE))
 
-        await call(DAIPricefeed.functions.set_latest_answer(toPrice(1)))
-        await call(vaultStorage.functions.set_asset_config(...getDaiConfig(DAI)))
+        await call(getUpdatePriceDataCall(toAsset(DAI), toPrice(1), vaultPricefeed, priceUpdateSigner))
+        await call(vault.functions.set_asset_config(...getDaiConfig(DAI)))
 
-        await call(BTCPricefeed.functions.set_latest_answer(toPrice(40000)))
-        await call(vaultStorage.functions.set_asset_config(...getBtcConfig(BTC)))
-        await call(vaultUtils.functions.set_max_leverage(toAsset(BTC), BTC_MAX_LEVERAGE))
+        await call(getUpdatePriceDataCall(toAsset(BTC), toPrice(40000), vaultPricefeed, priceUpdateSigner))
+        await call(vault.functions.set_asset_config(...getBtcConfig(BTC)))
+        await call(vault.functions.set_max_leverage(toAsset(BTC), BTC_MAX_LEVERAGE))
 
-        await call(BTCPricefeed.functions.set_latest_answer(toPrice(41000)))
-        await call(BTCPricefeed.functions.set_latest_answer(toPrice(40000)))
+        await call(getUpdatePriceDataCall(toAsset(BTC), toPrice(41000), vaultPricefeed, priceUpdateSigner))
+        await call(getUpdatePriceDataCall(toAsset(BTC), toPrice(40000), vaultPricefeed, priceUpdateSigner))
 
-        await call(vaultStorage.functions.set_liquidator(addrToAccount(user0), true))
+        await call(vault.functions.set_liquidator(addrToAccount(user0), true))
         await expect(
             call(
-                vaultRouter
+                vault
                     .connect(user0)
                     .functions.liquidate_position(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false, addrToAccount(user2))
                     .addContracts(attachedContracts),
             ),
-        ).to.be.revertedWith("VaultRouterEmptyPosition")
+        ).to.be.revertedWith("VaultEmptyPosition")
 
-        expect(await getValStr(vaultUtils.functions.get_global_short_sizes(toAsset(BTC)))).eq("0")
-        expect(await getValStr(vaultStorage.functions.get_global_short_average_prices(toAsset(BTC)))).eq("0")
+        expect(await getValStr(vault.functions.get_global_short_sizes(toAsset(BTC)))).eq("0")
+        expect(await getValStr(vault.functions.get_global_short_average_prices(toAsset(BTC)))).eq("0")
 
         await call(DAI.functions.mint(addrToAccount(user0), expandDecimals(1000)))
         await call(
-            vaultRouter
+            vault
                 .as(user0)
                 .functions.buy_rusd(toAsset(DAI), addrToAccount(user1))
                 .addContracts(attachedContracts)
@@ -242,7 +151,7 @@ describe("VaultRouter.liquidateShortPosition", function () {
         )
 
         await call(
-            vaultRouter
+            vault
                 .connect(user0)
                 .functions.increase_position(addrToAccount(user0), toAsset(DAI), toAsset(BTC), toUsd(90), false)
                 .callParams({
@@ -250,120 +159,123 @@ describe("VaultRouter.liquidateShortPosition", function () {
                 })
                 .addContracts(attachedContracts),
         )
-        let position = formatObj(await getPosition(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false, vaultStorage))
-        expect(position.size).eq(toUsd(90)) // size
-        expect(position.collateral).eq(toUsd(9.91)) // collateral, 10 - 90 * 0.1%
-        expect(position.average_price).eq(toNormalizedPrice(40000)) // averagePrice
-        expect(position.entry_funding_rate).eq("0") // entryFundingRate
-        expect(position.reserve_amount).eq(expandDecimals(90)) // reserveAmount
+        let position = formatObj(await getPosition(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false, vault))
+        expect(position.size).eq(toUsd(90))
+        expect(position.collateral).eq(toUsd(9.9))
+        expect(position.average_price).eq("39960000000000000000000000000000000")
+        expect(position.entry_funding_rate).eq("0")
+        expect(position.reserve_amount).eq("90090090090")
 
-        expect(await getValStr(vaultUtils.functions.get_global_short_sizes(toAsset(BTC)))).eq(toUsd(90))
-        expect(await getValStr(vaultStorage.functions.get_global_short_average_prices(toAsset(BTC)))).eq(toNormalizedPrice(40000))
+        expect(await getValStr(vault.functions.get_global_short_sizes(toAsset(BTC)))).eq(toUsd(90))
+        expect(await getValStr(vault.functions.get_global_short_average_prices(toAsset(BTC)))).eq(
+            "39960000000000000000000000000000000",
+        )
 
         expect(
             formatObj(
                 await getValue(
-                    vaultUtils.functions.validate_liquidation(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false, false),
+                    vault.functions.validate_liquidation(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false, false),
                 ),
             )[0],
         ).eq("0")
 
-        await call(BTCPricefeed.functions.set_latest_answer(toPrice(39000)))
-        await call(BTCPricefeed.functions.set_latest_answer(toPrice(39000)))
-        await call(BTCPricefeed.functions.set_latest_answer(toPrice(39000)))
+        await call(getUpdatePriceDataCall(toAsset(BTC), toPrice(39000), vaultPricefeed, priceUpdateSigner))
 
         let delta = formatObj(
-            await getValue(vaultUtils.functions.get_position_delta(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false)),
+            await getValue(vault.functions.get_position_delta(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false)),
         )
         expect(delta[0]).eq(true)
-        expect(delta[1]).eq(toUsd(2.25)) // 1000 / 40,000 * 90
+        expect(delta[1]).eq("2074324324324324324324324324324")
         expect(
             formatObj(
                 await getValue(
-                    vaultUtils.functions.validate_liquidation(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false, false),
+                    vault.functions.validate_liquidation(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false, false),
                 ),
             )[0],
         ).eq("0")
 
-        await call(BTCPricefeed.functions.set_latest_answer(toPrice(41000)))
+        await call(getUpdatePriceDataCall(toAsset(BTC), toPrice(41000), vaultPricefeed, priceUpdateSigner))
         delta = formatObj(
-            await getValue(vaultUtils.functions.get_position_delta(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false)),
+            await getValue(vault.functions.get_position_delta(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false)),
         )
         expect(delta[0]).eq(false)
-        expect(delta[1]).eq(toUsd(2.25))
+        expect(delta[1]).eq("2434684684684684684684684684684")
         expect(
             formatObj(
                 await getValue(
-                    vaultUtils.functions.validate_liquidation(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false, false),
+                    vault.functions.validate_liquidation(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false, false),
                 ),
             )[0],
         ).eq("0")
 
-        await call(vaultStorage.functions.set_liquidator(addrToAccount(deployer), true))
+        await call(vault.functions.set_liquidator(addrToAccount(deployer), true))
         await expect(
             call(
-                vaultRouter.functions
+                vault.functions
                     .liquidate_position(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false, addrToAccount(user2))
                     .addContracts(attachedContracts),
             ),
-        ).to.be.revertedWith("VaultPositionCannotBeLiquidated")
+        ).to.be.revertedWith("VaultCannotBeLiquidated")
 
-        await call(BTCPricefeed.functions.set_latest_answer(toPrice(42500)))
+        await call(getUpdatePriceDataCall(toAsset(BTC), toPrice(42500), vaultPricefeed, priceUpdateSigner))
+
         delta = formatObj(
-            await getValue(vaultUtils.functions.get_position_delta(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false)),
+            await getValue(vault.functions.get_position_delta(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false)),
         )
         expect(delta[0]).eq(false)
-        expect(delta[1]).eq("5625000000000000000000000000000") // 2500 / 40,000 * 90 => 5.625
+        expect(delta[1]).eq("5816441441441441441441441441441")
         expect(
             formatObj(
                 await getValue(
-                    vaultUtils.functions.validate_liquidation(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false, false),
+                    vault.functions.validate_liquidation(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false, false),
                 ),
             )[0],
         ).eq("1")
 
-        position = formatObj(await getPosition(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false, vaultStorage))
-        expect(position.size).eq(toUsd(90)) // size
-        expect(position.collateral).eq(toUsd(9.91)) // collateral, 10 - 90 * 0.1%
-        expect(position.average_price).eq(toNormalizedPrice(40000)) // averagePrice
-        expect(position.entry_funding_rate).eq("0") // entryFundingRate
-        expect(position.reserve_amount).eq(expandDecimals(90)) // reserveAmount
+        position = formatObj(await getPosition(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false, vault))
+        expect(position.size).eq(toUsd(90))
+        expect(position.collateral).eq(toUsd(9.9))
+        expect(position.average_price).eq("39960000000000000000000000000000000")
+        expect(position.entry_funding_rate).eq("0")
+        expect(position.reserve_amount).eq("90090090090")
 
-        expect(await getValStr(vaultStorage.functions.get_fee_reserves(toAsset(DAI)))).eq("13000000") // 0.13
-        expect(await getValStr(vaultUtils.functions.get_reserved_amounts(toAsset(DAI)))).eq(expandDecimals(90))
-        expect(await getValStr(vaultUtils.functions.get_guaranteed_usd(toAsset(DAI)))).eq("0")
-        expect(await getValStr(vaultUtils.functions.get_pool_amounts(toAsset(DAI)))).eq("9996000000")
+        expect(await getValStr(vault.functions.get_fee_reserves(toAsset(DAI)))).eq("129910089")
+        expect(await getValStr(vault.functions.get_reserved_amount(toAsset(DAI)))).eq("90090090090")
+        expect(await getValStr(vault.functions.get_guaranteed_usd(toAsset(DAI)))).eq("0")
+        expect(await getValStr(vault.functions.get_pool_amounts(toAsset(DAI)))).eq("99960000000")
         expect(await getBalance(user2, DAI)).eq("0")
 
-        await call(vaultStorage.functions.set_liquidator(addrToAccount(deployer), true))
+        await call(vault.functions.set_liquidator(addrToAccount(deployer), true))
         await call(
-            vaultRouter.functions
+            vault.functions
                 .liquidate_position(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false, addrToAccount(user2))
                 .addContracts(attachedContracts),
         )
 
-        position = formatObj(await getPosition(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false, vaultStorage))
-        expect(position.size).eq("0") // size
+        position = formatObj(await getPosition(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false, vault))
+        expect(position.size).eq("0")
         expect(position.collateral).eq("0") // collateral
-        expect(position.average_price).eq("0") // averagePrice
-        expect(position.entry_funding_rate).eq("0") // entryFundingRate
-        expect(position.reserve_amount).eq("0") // reserveAmount
+        expect(position.average_price).eq("0")
+        expect(position.entry_funding_rate).eq("0")
+        expect(position.reserve_amount).eq("0")
 
-        expect(await getValStr(vaultStorage.functions.get_fee_reserves(toAsset(DAI)))).eq("22000000") // 0.22
-        expect(await getValStr(vaultUtils.functions.get_reserved_amounts(toAsset(DAI)))).eq("0")
-        expect(await getValStr(vaultUtils.functions.get_guaranteed_usd(toAsset(DAI)))).eq("0")
-        expect(await getValStr(vaultUtils.functions.get_pool_amounts(toAsset(DAI)))).eq("10478000000") // 104.78
-        expect(await getBalance(user2, DAI)).eq(expandDecimals(5))
+        expect(await getValStr(vault.functions.get_fee_reserves(toAsset(DAI)))).eq("219820178")
+        expect(await getValStr(vault.functions.get_reserved_amount(toAsset(DAI)))).eq("0")
+        expect(await getValStr(vault.functions.get_guaranteed_usd(toAsset(DAI)))).eq("0")
+        expect(await getValStr(vault.functions.get_pool_amounts(toAsset(DAI)))).eq("104765194805")
+        expect(await getBalance(user2, DAI)).eq("4995004995")
 
-        expect(await getValStr(vaultUtils.functions.get_global_short_sizes(toAsset(BTC)))).eq("0")
-        expect(await getValStr(vaultStorage.functions.get_global_short_average_prices(toAsset(BTC)))).eq(toNormalizedPrice(40000))
+        expect(await getValStr(vault.functions.get_global_short_sizes(toAsset(BTC)))).eq("0")
+        expect(await getValStr(vault.functions.get_global_short_average_prices(toAsset(BTC)))).eq(
+            "39960000000000000000000000000000000",
+        )
 
-        await call(BTCPricefeed.functions.set_latest_answer(toPrice(50000)))
-        await call(BTCPricefeed.functions.set_latest_answer(toPrice(50000)))
-        await call(BTCPricefeed.functions.set_latest_answer(toPrice(50000)))
+        await call(getUpdatePriceDataCall(toAsset(BTC), toPrice(50000), vaultPricefeed, priceUpdateSigner))
+        await call(getUpdatePriceDataCall(toAsset(BTC), toPrice(50000), vaultPricefeed, priceUpdateSigner))
+        await call(getUpdatePriceDataCall(toAsset(BTC), toPrice(50000), vaultPricefeed, priceUpdateSigner))
 
         await call(
-            vaultRouter
+            vault
                 .connect(user0)
                 .functions.increase_position(addrToAccount(user0), toAsset(DAI), toAsset(BTC), toUsd(100), false)
                 .callParams({
@@ -372,76 +284,66 @@ describe("VaultRouter.liquidateShortPosition", function () {
                 .addContracts(attachedContracts),
         )
 
-        expect(await getValStr(vaultUtils.functions.get_global_short_sizes(toAsset(BTC)))).eq(toUsd(100))
-        expect(await getValStr(vaultStorage.functions.get_global_short_average_prices(toAsset(BTC)))).eq(toNormalizedPrice(50000))
-
-        position = formatObj(await getPosition(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false, vaultStorage))
-        await validateVaultRouterBalance(
-            expect,
-            vault,
-            vaultStorage,
-            vaultUtils,
-            DAI,
-            BigNumber.from(position.collateral).mul(expandDecimals(10)).div(expandDecimals(10, 30)).toString(),
+        expect(await getValStr(vault.functions.get_global_short_sizes(toAsset(BTC)))).eq(toUsd(100))
+        expect(await getValStr(vault.functions.get_global_short_average_prices(toAsset(BTC)))).eq(
+            "49950000000000000000000000000000000",
         )
     })
 
     it("automatic stop-loss", async () => {
         await call(
-            vaultStorage.functions.set_fees(
-                50, // _taxBasisPoints
-                10, // _stableTaxBasisPoints
-                4, // _mintBurnFeeBasisPoints
-                30, // _swapFeeBasisPoints
-                4, // _stableSwapFeeBasisPoints
-                10, // _marginFeeBasisPoints
-                toUsd(5), // _liquidationFeeUsd
-                0, // _minProfitTime
-                false, // _hasDynamicFees
+            vault.functions.set_fees(
+                50, // tax_basis_points
+                10, // stable_tax_basis_points
+                4, // mint_burn_fee_basis_points
+                30, // swap_fee_basis_points
+                4, // stable_swap_fee_basis_points
+                10, // margin_fee_basis_points
+                toUsd(5), // liquidation_fee_usd
+                0, // min_profit_time
+                false, // has_dynamic_fees
             ),
         )
 
-        await call(BNBPricefeed.functions.set_latest_answer(toPrice(300)))
-        await call(vaultStorage.functions.set_asset_config(...getBnbConfig(BNB)))
-        await call(vaultUtils.functions.set_max_leverage(toAsset(BNB), BNB_MAX_LEVERAGE))
+        await call(getUpdatePriceDataCall(toAsset(BNB), toPrice(300), vaultPricefeed, priceUpdateSigner))
+        await call(vault.functions.set_asset_config(...getBnbConfig(BNB)))
+        await call(vault.functions.set_max_leverage(toAsset(BNB), BNB_MAX_LEVERAGE))
 
-        await call(DAIPricefeed.functions.set_latest_answer(toPrice(1)))
-        await call(vaultStorage.functions.set_asset_config(...getDaiConfig(DAI)))
+        await call(getUpdatePriceDataCall(toAsset(DAI), toPrice(1), vaultPricefeed, priceUpdateSigner))
+        await call(vault.functions.set_asset_config(...getDaiConfig(DAI)))
 
-        await call(BTCPricefeed.functions.set_latest_answer(toPrice(40000)))
-        await call(vaultStorage.functions.set_asset_config(...getBtcConfig(BTC)))
-        await call(vaultUtils.functions.set_max_leverage(toAsset(BTC), BTC_MAX_LEVERAGE))
+        await call(vault.functions.set_asset_config(...getBtcConfig(BTC)))
+        await call(vault.functions.set_max_leverage(toAsset(BTC), BTC_MAX_LEVERAGE))
 
-        await call(BTCPricefeed.functions.set_latest_answer(toPrice(41000)))
-        await call(BTCPricefeed.functions.set_latest_answer(toPrice(40000)))
+        await call(getUpdatePriceDataCall(toAsset(BTC), toPrice(40333), vaultPricefeed, priceUpdateSigner))
 
-        await call(vaultStorage.functions.set_liquidator(addrToAccount(user0), true))
+        await call(vault.functions.set_liquidator(addrToAccount(user0), true))
         await expect(
             call(
-                vaultRouter
+                vault
                     .connect(user0)
                     .functions.liquidate_position(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false, addrToAccount(user2))
                     .addContracts(attachedContracts),
             ),
-        ).to.be.revertedWith("VaultRouterEmptyPosition")
+        ).to.be.revertedWith("VaultEmptyPosition")
 
-        expect(await getValStr(vaultUtils.functions.get_global_short_sizes(toAsset(BTC)))).eq("0")
-        expect(await getValStr(vaultStorage.functions.get_global_short_average_prices(toAsset(BTC)))).eq("0")
+        expect(await getValStr(vault.functions.get_global_short_sizes(toAsset(BTC)))).eq("0")
+        expect(await getValStr(vault.functions.get_global_short_average_prices(toAsset(BTC)))).eq("0")
 
-        await call(DAI.functions.mint(addrToAccount(user0), expandDecimals(1001)))
+        await call(DAI.functions.mint(addrToAccount(user0), expandDecimals(1002)))
         await call(
-            vaultRouter
+            vault
                 .as(user0)
                 .functions.buy_rusd(toAsset(DAI), addrToAccount(user1))
                 .addContracts(attachedContracts)
                 .callParams({
-                    forward: [expandDecimals(1001), getAssetId(DAI)],
+                    forward: [expandDecimals(1002), getAssetId(DAI)],
                 }),
         )
 
         await call(DAI.functions.mint(addrToAccount(user0), expandDecimals(100)))
         await call(
-            vaultRouter
+            vault
                 .connect(user0)
                 .functions.increase_position(addrToAccount(user0), toAsset(DAI), toAsset(BTC), toUsd(1000), false)
                 .addContracts(attachedContracts)
@@ -450,150 +352,152 @@ describe("VaultRouter.liquidateShortPosition", function () {
                 }),
         )
 
-        let position = formatObj(await getPosition(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false, vaultStorage))
-        expect(position.size).eq(toUsd(1000)) // size
-        expect(position.collateral).eq(toUsd(99)) // collateral, 10 - 90 * 0.1%
-        expect(position.average_price).eq(toNormalizedPrice(40000)) // averagePrice
-        expect(position.entry_funding_rate).eq("0") // entryFundingRate
-        expect(position.reserve_amount).eq(expandDecimals(1000)) // reserveAmount
+        let position = formatObj(await getPosition(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false, vault))
+        expect(position.size).eq(toUsd(1000))
+        expect(position.collateral).eq(toUsd(98.9))
+        expect(position.average_price).eq("40292667000000000000000000000000000")
+        expect(position.entry_funding_rate).eq("0")
+        expect(position.reserve_amount).eq("1001001001001")
 
-        expect(await getValStr(vaultUtils.functions.get_global_short_sizes(toAsset(BTC)))).eq(toUsd(1000))
-        expect(await getValStr(vaultStorage.functions.get_global_short_average_prices(toAsset(BTC)))).eq(toNormalizedPrice(40000))
+        expect(await getValStr(vault.functions.get_global_short_sizes(toAsset(BTC)))).eq(toUsd(1000))
+        expect(await getValStr(vault.functions.get_global_short_average_prices(toAsset(BTC)))).eq(
+            "40292667000000000000000000000000000",
+        )
 
         expect(
             formatObj(
                 await getValue(
-                    vaultUtils.functions.validate_liquidation(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false, false),
+                    vault.functions.validate_liquidation(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false, false),
                 ),
             )[0],
         ).eq("0")
 
-        await call(BTCPricefeed.functions.set_latest_answer(toPrice(39000)))
-        await call(BTCPricefeed.functions.set_latest_answer(toPrice(39000)))
-        await call(BTCPricefeed.functions.set_latest_answer(toPrice(39000)))
+        await call(getUpdatePriceDataCall(toAsset(BTC), toPrice(39000), vaultPricefeed, priceUpdateSigner))
 
         let delta = formatObj(
-            await getValue(vaultUtils.functions.get_position_delta(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false)),
+            await getValue(vault.functions.get_position_delta(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false)),
         )
         expect(delta[0]).eq(true)
-        expect(delta[1]).eq(toUsd(25)) // 1000 / 40,000 * 1000
+        expect(delta[1]).eq("31114023799913765946543076932584")
         expect(
             formatObj(
                 await getValue(
-                    vaultUtils.functions.validate_liquidation(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false, false),
+                    vault.functions.validate_liquidation(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false, false),
                 ),
             )[0],
         ).eq("0")
 
-        await call(BTCPricefeed.functions.set_latest_answer(toPrice(41000)))
-        await call(BTCPricefeed.functions.set_latest_answer(toPrice(41000)))
-        await call(BTCPricefeed.functions.set_latest_answer(toPrice(41000)))
+        await call(getUpdatePriceDataCall(toAsset(BTC), toPrice(41000), vaultPricefeed, priceUpdateSigner))
         delta = formatObj(
-            await getValue(vaultUtils.functions.get_position_delta(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false)),
+            await getValue(vault.functions.get_position_delta(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false)),
         )
         expect(delta[0]).eq(false)
-        expect(delta[1]).eq(toUsd(25))
+        expect(delta[1]).eq("18572436518039374261326508865744")
         expect(
             formatObj(
                 await getValue(
-                    vaultUtils.functions.validate_liquidation(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false, false),
+                    vault.functions.validate_liquidation(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false, false),
                 ),
             )[0],
         ).eq("0")
 
-        await call(vaultStorage.functions.set_liquidator(addrToAccount(deployer), true))
+        await call(vault.functions.set_liquidator(addrToAccount(deployer), true))
         await expect(
             call(
-                vaultRouter.functions
+                vault.functions
                     .liquidate_position(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false, addrToAccount(user2))
                     .addContracts(attachedContracts),
             ),
-        ).to.be.revertedWith("VaultPositionCannotBeLiquidated")
+        ).to.be.revertedWith("VaultCannotBeLiquidated")
 
-        await call(BTCPricefeed.functions.set_latest_answer(toPrice(45000)))
-        await call(BTCPricefeed.functions.set_latest_answer(toPrice(45000)))
-        await call(BTCPricefeed.functions.set_latest_answer(toPrice(45000)))
+        await call(getUpdatePriceDataCall(toAsset(BTC), toPrice(45000), vaultPricefeed, priceUpdateSigner))
+        await call(getUpdatePriceDataCall(toAsset(BTC), toPrice(45000), vaultPricefeed, priceUpdateSigner))
+        await call(getUpdatePriceDataCall(toAsset(BTC), toPrice(45000), vaultPricefeed, priceUpdateSigner))
         delta = formatObj(
-            await getValue(vaultUtils.functions.get_position_delta(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false)),
+            await getValue(vault.functions.get_position_delta(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false)),
         )
         expect(delta[0]).eq(false)
-        expect(delta[1]).eq(toUsd(125)) // 5000 / 40,000 * 1000 => 125
+        expect(delta[1]).eq("117945357153945654677065680462402")
         expect(
             formatObj(
                 await getValue(
-                    vaultUtils.functions.validate_liquidation(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false, false),
+                    vault.functions.validate_liquidation(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false, false),
                 ),
             )[0],
         ).eq("1")
 
-        await call(BTCPricefeed.functions.set_latest_answer(toPrice(43600)))
-        await call(BTCPricefeed.functions.set_latest_answer(toPrice(43600)))
-        await call(BTCPricefeed.functions.set_latest_answer(toPrice(43600)))
+        await call(getUpdatePriceDataCall(toAsset(BTC), toPrice(43600), vaultPricefeed, priceUpdateSigner))
+        await call(getUpdatePriceDataCall(toAsset(BTC), toPrice(43600), vaultPricefeed, priceUpdateSigner))
+        await call(getUpdatePriceDataCall(toAsset(BTC), toPrice(43600), vaultPricefeed, priceUpdateSigner))
         delta = formatObj(
-            await getValue(vaultUtils.functions.get_position_delta(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false)),
+            await getValue(vault.functions.get_position_delta(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false)),
         )
         expect(delta[0]).eq(false)
-        expect(delta[1]).eq(toUsd(90)) // 3600 / 40,000 * 1000 => 90
+        expect(delta[1]).eq("83164834931378456531556970403572")
         expect(
             formatObj(
                 await getValue(
-                    vaultUtils.functions.validate_liquidation(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false, false),
+                    vault.functions.validate_liquidation(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false, false),
                 ),
             )[0],
         ).eq("2")
 
-        position = formatObj(await getPosition(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false, vaultStorage))
-        expect(position.size).eq(toUsd(1000)) // size
-        expect(position.collateral).eq(toUsd(99)) // collateral, 10 - 90 * 0.1%
-        expect(position.average_price).eq(toNormalizedPrice(40000)) // averagePrice
-        expect(position.entry_funding_rate).eq("0") // entryFundingRate
-        expect(position.reserve_amount).eq(expandDecimals(1000)) // reserveAmount
+        position = formatObj(await getPosition(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false, vault))
+        expect(position.size).eq(toUsd(1000))
+        expect(position.collateral).eq("98900000000000000000000000000000")
+        expect(position.average_price).eq("40292667000000000000000000000000000")
+        expect(position.entry_funding_rate).eq("0")
+        expect(position.reserve_amount).eq("1001001001001")
 
-        expect(await getValStr(vaultStorage.functions.get_fee_reserves(toAsset(DAI)))).eq("140040000") // 1.4004
-        expect(await getValStr(vaultUtils.functions.get_reserved_amounts(toAsset(DAI)))).eq(expandDecimals(1000))
-        expect(await getValStr(vaultUtils.functions.get_guaranteed_usd(toAsset(DAI)))).eq("0")
+        expect(await getValStr(vault.functions.get_fee_reserves(toAsset(DAI)))).eq("1399800999")
+        expect(await getValStr(vault.functions.get_reserved_amount(toAsset(DAI)))).eq("1001001001001")
+        expect(await getValStr(vault.functions.get_guaranteed_usd(toAsset(DAI)))).eq("0")
 
-        expect(await getValStr(vaultUtils.functions.get_pool_amounts(toAsset(DAI)))).eq("100059960000") // 1000.5996
+        expect(await getValStr(vault.functions.get_pool_amounts(toAsset(DAI)))).eq("1001599200000")
         expect(await getBalance(deployer, DAI)).eq("0")
         expect(await getBalance(user0, DAI)).eq("0")
         expect(await getBalance(user1, DAI)).eq("0")
         expect(await getBalance(user2, DAI)).eq("0")
-        expect(await getValStr(vaultUtils.functions.get_global_short_sizes(toAsset(BTC)))).eq(toUsd(1000))
-        expect(await getValStr(vaultStorage.functions.get_global_short_average_prices(toAsset(BTC)))).eq(toNormalizedPrice(40000))
+        expect(await getValStr(vault.functions.get_global_short_sizes(toAsset(BTC)))).eq(toUsd(1000))
+        expect(await getValStr(vault.functions.get_global_short_average_prices(toAsset(BTC)))).eq(
+            "40292667000000000000000000000000000",
+        )
 
-        await call(vaultStorage.functions.set_liquidator(addrToAccount(deployer), true))
+        await call(vault.functions.set_liquidator(addrToAccount(deployer), true))
         await call(
-            vaultRouter.functions
+            vault.functions
                 .liquidate_position(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false, addrToAccount(user2))
                 .addContracts(attachedContracts),
         )
 
-        position = formatObj(await getPosition(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false, vaultStorage))
-        expect(position.size).eq("0") // size
+        position = formatObj(await getPosition(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false, vault))
+        expect(position.size).eq("0")
         expect(position.collateral).eq("0") // collateral
-        expect(position.average_price).eq("0") // averagePrice
-        expect(position.entry_funding_rate).eq("0") // entryFundingRate
-        expect(position.reserve_amount).eq("0") // reserveAmount
+        expect(position.average_price).eq("0")
+        expect(position.entry_funding_rate).eq("0")
+        expect(position.reserve_amount).eq("0")
 
-        expect(await getValStr(vaultStorage.functions.get_fee_reserves(toAsset(DAI)))).eq("240040000") // 2.4004
-        expect(await getValStr(vaultUtils.functions.get_reserved_amounts(toAsset(DAI)))).eq("0")
-        expect(await getValStr(vaultUtils.functions.get_guaranteed_usd(toAsset(DAI)))).eq("0")
-        expect(await getValStr(vaultUtils.functions.get_pool_amounts(toAsset(DAI)))).eq("109059960000") // 1090.5996
+        expect(await getValStr(vault.functions.get_fee_reserves(toAsset(DAI)))).eq("2398801998")
+        expect(await getValStr(vault.functions.get_reserved_amount(toAsset(DAI)))).eq("0")
+        expect(await getValStr(vault.functions.get_guaranteed_usd(toAsset(DAI)))).eq("0")
+        expect(await getValStr(vault.functions.get_pool_amounts(toAsset(DAI)))).eq("1084680953178")
         expect(await getBalance(deployer, DAI)).eq("0")
-        expect(await getBalance(user0, DAI)).eq(expandDecimals(8))
+        expect(await getBalance(user0, DAI)).eq("14720444623")
         expect(await getBalance(user1, DAI)).eq("0")
         expect(await getBalance(user2, DAI)).eq("0")
 
-        expect(await getValStr(vaultUtils.functions.get_global_short_sizes(toAsset(BTC)))).eq("0")
-        expect(await getValStr(vaultStorage.functions.get_global_short_average_prices(toAsset(BTC)))).eq(toNormalizedPrice(40000))
+        expect(await getValStr(vault.functions.get_global_short_sizes(toAsset(BTC)))).eq("0")
+        expect(await getValStr(vault.functions.get_global_short_average_prices(toAsset(BTC)))).eq(
+            "40292667000000000000000000000000000",
+        )
 
-        await call(BTCPricefeed.functions.set_latest_answer(toPrice(50000)))
-        await call(BTCPricefeed.functions.set_latest_answer(toPrice(50000)))
-        await call(BTCPricefeed.functions.set_latest_answer(toPrice(50000)))
+        await call(getUpdatePriceDataCall(toAsset(BTC), toPrice(50000), vaultPricefeed, priceUpdateSigner))
+        await call(getUpdatePriceDataCall(toAsset(BTC), toPrice(50000), vaultPricefeed, priceUpdateSigner))
+        await call(getUpdatePriceDataCall(toAsset(BTC), toPrice(50000), vaultPricefeed, priceUpdateSigner))
 
         await call(DAI.functions.mint(addrToAccount(user0), expandDecimals(20)))
         await call(
-            vaultRouter
+            vault
                 .connect(user0)
                 .functions.increase_position(addrToAccount(user0), toAsset(DAI), toAsset(BTC), toUsd(100), false)
                 .callParams({
@@ -602,76 +506,69 @@ describe("VaultRouter.liquidateShortPosition", function () {
                 .addContracts(attachedContracts),
         )
 
-        expect(await getValStr(vaultUtils.functions.get_global_short_sizes(toAsset(BTC)))).eq(toUsd(100))
-        expect(await getValStr(vaultStorage.functions.get_global_short_average_prices(toAsset(BTC)))).eq(toNormalizedPrice(50000))
-
-        position = formatObj(await getPosition(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false, vaultStorage))
-        await validateVaultRouterBalance(
-            expect,
-            vault,
-            vaultStorage,
-            vaultUtils,
-            DAI,
-            BigNumber.from(position.collateral).mul(expandDecimals(10)).div(expandDecimals(10, 30)).toString(),
+        expect(await getValStr(vault.functions.get_global_short_sizes(toAsset(BTC)))).eq(toUsd(100))
+        expect(await getValStr(vault.functions.get_global_short_average_prices(toAsset(BTC)))).eq(
+            "49950000000000000000000000000000000",
         )
+
+        position = formatObj(await getPosition(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false, vault))
     })
 
     it("global AUM", async () => {
         await call(
-            vaultStorage.functions.set_fees(
-                50, // _taxBasisPoints
-                10, // _stableTaxBasisPoints
-                4, // _mintBurnFeeBasisPoints
-                30, // _swapFeeBasisPoints
-                4, // _stableSwapFeeBasisPoints
-                10, // _marginFeeBasisPoints
-                toUsd(5), // _liquidationFeeUsd
-                0, // _minProfitTime
-                false, // _hasDynamicFees
+            vault.functions.set_fees(
+                50, // tax_basis_points
+                10, // stable_tax_basis_points
+                4, // mint_burn_fee_basis_points
+                30, // swap_fee_basis_points
+                4, // stable_swap_fee_basis_points
+                10, // margin_fee_basis_points
+                toUsd(5), // liquidation_fee_usd
+                0, // min_profit_time
+                false, // has_dynamic_fees
             ),
         )
 
-        await call(BNBPricefeed.functions.set_latest_answer(toPrice(300)))
-        await call(vaultStorage.functions.set_asset_config(...getBnbConfig(BNB)))
-        await call(vaultUtils.functions.set_max_leverage(toAsset(BNB), BNB_MAX_LEVERAGE))
+        await call(getUpdatePriceDataCall(toAsset(BNB), toPrice(300), vaultPricefeed, priceUpdateSigner))
+        await call(vault.functions.set_asset_config(...getBnbConfig(BNB)))
+        await call(vault.functions.set_max_leverage(toAsset(BNB), BNB_MAX_LEVERAGE))
 
-        await call(DAIPricefeed.functions.set_latest_answer(toPrice(1)))
-        await call(vaultStorage.functions.set_asset_config(...getDaiConfig(DAI)))
+        await call(getUpdatePriceDataCall(toAsset(DAI), toPrice(1), vaultPricefeed, priceUpdateSigner))
+        await call(vault.functions.set_asset_config(...getDaiConfig(DAI)))
 
-        await call(BTCPricefeed.functions.set_latest_answer(toPrice(40000)))
-        await call(vaultStorage.functions.set_asset_config(...getBtcConfig(BTC)))
-        await call(vaultUtils.functions.set_max_leverage(toAsset(BTC), BTC_MAX_LEVERAGE))
+        await call(vault.functions.set_asset_config(...getBtcConfig(BTC)))
+        await call(vault.functions.set_max_leverage(toAsset(BTC), BTC_MAX_LEVERAGE))
 
-        await call(BTCPricefeed.functions.set_latest_answer(toPrice(41000)))
-        await call(BTCPricefeed.functions.set_latest_answer(toPrice(40000)))
+        await call(getUpdatePriceDataCall(toAsset(BTC), toPrice(41000), vaultPricefeed, priceUpdateSigner))
+        await call(getUpdatePriceDataCall(toAsset(BTC), toPrice(40333), vaultPricefeed, priceUpdateSigner))
 
-        await call(vaultStorage.functions.set_liquidator(addrToAccount(user0), true))
+        await call(vault.functions.set_liquidator(addrToAccount(user0), true))
         await expect(
             call(
-                vaultRouter
+                vault
                     .connect(user0)
                     .functions.liquidate_position(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false, addrToAccount(user2))
                     .addContracts(attachedContracts),
             ),
-        ).to.be.revertedWith("VaultRouterEmptyPosition")
+        ).to.be.revertedWith("VaultEmptyPosition")
 
-        expect(await getValStr(vaultUtils.functions.get_global_short_sizes(toAsset(BTC)))).eq("0")
-        expect(await getValStr(vaultStorage.functions.get_global_short_average_prices(toAsset(BTC)))).eq("0")
+        expect(await getValStr(vault.functions.get_global_short_sizes(toAsset(BTC)))).eq("0")
+        expect(await getValStr(vault.functions.get_global_short_average_prices(toAsset(BTC)))).eq("0")
 
-        await call(DAI.functions.mint(addrToAccount(user0), expandDecimals(1001)))
+        await call(DAI.functions.mint(addrToAccount(user0), expandDecimals(1002)))
         await call(
-            vaultRouter
+            vault
                 .as(user0)
                 .functions.buy_rusd(toAsset(DAI), addrToAccount(user1))
                 .addContracts(attachedContracts)
                 .callParams({
-                    forward: [expandDecimals(1001), getAssetId(DAI)],
+                    forward: [expandDecimals(1002), getAssetId(DAI)],
                 }),
         )
 
         await call(DAI.functions.mint(addrToAccount(user0), expandDecimals(100)))
         await call(
-            vaultRouter
+            vault
                 .as(user0)
                 .functions.increase_position(addrToAccount(user0), toAsset(DAI), toAsset(BTC), toUsd(1000), false)
                 .addContracts(attachedContracts)
@@ -680,133 +577,139 @@ describe("VaultRouter.liquidateShortPosition", function () {
                 }),
         )
 
-        let position = formatObj(await getPosition(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false, vaultStorage))
-        expect(position.size).eq(toUsd(1000)) // size
-        expect(position.collateral).eq(toUsd(99)) // collateral, 10 - 90 * 0.1%
-        expect(position.average_price).eq(toNormalizedPrice(40000)) // averagePrice
-        expect(position.entry_funding_rate).eq("0") // entryFundingRate
-        expect(position.reserve_amount).eq(expandDecimals(1000)) // reserveAmount
+        let position = formatObj(await getPosition(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false, vault))
+        expect(position.size).eq(toUsd(1000))
+        expect(position.collateral).eq("98900000000000000000000000000000")
+        expect(position.average_price).eq("40292667000000000000000000000000000")
+        expect(position.entry_funding_rate).eq("0")
+        expect(position.reserve_amount).eq("1001001001001")
 
-        expect(await getValStr(vaultUtils.functions.get_global_short_sizes(toAsset(BTC)))).eq(toUsd(1000))
-        expect(await getValStr(vaultStorage.functions.get_global_short_average_prices(toAsset(BTC)))).eq(toNormalizedPrice(40000))
+        expect(await getValStr(vault.functions.get_global_short_sizes(toAsset(BTC)))).eq(toUsd(1000))
+        expect(await getValStr(vault.functions.get_global_short_average_prices(toAsset(BTC)))).eq(
+            "40292667000000000000000000000000000",
+        )
 
         expect(
             formatObj(
                 await getValue(
-                    vaultUtils.functions.validate_liquidation(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false, false),
+                    vault.functions.validate_liquidation(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false, false),
                 ),
             )[0],
         ).eq("0")
 
-        await call(BTCPricefeed.functions.set_latest_answer(toPrice(39000)))
-        await call(BTCPricefeed.functions.set_latest_answer(toPrice(39000)))
-        await call(BTCPricefeed.functions.set_latest_answer(toPrice(39000)))
+        await call(getUpdatePriceDataCall(toAsset(BTC), toPrice(39000), vaultPricefeed, priceUpdateSigner))
+        await call(getUpdatePriceDataCall(toAsset(BTC), toPrice(39000), vaultPricefeed, priceUpdateSigner))
+        await call(getUpdatePriceDataCall(toAsset(BTC), toPrice(39000), vaultPricefeed, priceUpdateSigner))
 
         let delta = formatObj(
-            await getValue(vaultUtils.functions.get_position_delta(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false)),
+            await getValue(vault.functions.get_position_delta(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false)),
         )
         expect(delta[0]).eq(true)
-        expect(delta[1]).eq(toUsd(25)) // 1000 / 40,000 * 1000
+        expect(delta[1]).eq("31114023799913765946543076932584")
         expect(
             formatObj(
                 await getValue(
-                    vaultUtils.functions.validate_liquidation(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false, false),
+                    vault.functions.validate_liquidation(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false, false),
                 ),
             )[0],
         ).eq("0")
 
-        await call(BTCPricefeed.functions.set_latest_answer(toPrice(41000)))
-        await call(BTCPricefeed.functions.set_latest_answer(toPrice(41000)))
-        await call(BTCPricefeed.functions.set_latest_answer(toPrice(41000)))
+        await call(getUpdatePriceDataCall(toAsset(BTC), toPrice(41000), vaultPricefeed, priceUpdateSigner))
+        await call(getUpdatePriceDataCall(toAsset(BTC), toPrice(41000), vaultPricefeed, priceUpdateSigner))
+        await call(getUpdatePriceDataCall(toAsset(BTC), toPrice(41000), vaultPricefeed, priceUpdateSigner))
         delta = formatObj(
-            await getValue(vaultUtils.functions.get_position_delta(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false)),
+            await getValue(vault.functions.get_position_delta(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false)),
         )
         expect(delta[0]).eq(false)
-        expect(delta[1]).eq(toUsd(25))
+        expect(delta[1]).eq("18572436518039374261326508865744")
         expect(
             formatObj(
                 await getValue(
-                    vaultUtils.functions.validate_liquidation(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false, false),
+                    vault.functions.validate_liquidation(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false, false),
                 ),
             )[0],
         ).eq("0")
 
-        await call(vaultStorage.functions.set_liquidator(addrToAccount(deployer), true))
+        await call(vault.functions.set_liquidator(addrToAccount(deployer), true))
         await expect(
             call(
-                vaultRouter.functions
+                vault.functions
                     .liquidate_position(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false, addrToAccount(user2))
                     .addContracts(attachedContracts),
             ),
-        ).to.be.revertedWith("VaultPositionCannotBeLiquidated")
+        ).to.be.revertedWith("VaultCannotBeLiquidated")
 
-        await call(BTCPricefeed.functions.set_latest_answer(toPrice(45000)))
-        await call(BTCPricefeed.functions.set_latest_answer(toPrice(45000)))
-        await call(BTCPricefeed.functions.set_latest_answer(toPrice(45000)))
+        await call(getUpdatePriceDataCall(toAsset(BTC), toPrice(45000), vaultPricefeed, priceUpdateSigner))
+        await call(getUpdatePriceDataCall(toAsset(BTC), toPrice(45000), vaultPricefeed, priceUpdateSigner))
+        await call(getUpdatePriceDataCall(toAsset(BTC), toPrice(45000), vaultPricefeed, priceUpdateSigner))
         delta = formatObj(
-            await getValue(vaultUtils.functions.get_position_delta(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false)),
+            await getValue(vault.functions.get_position_delta(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false)),
         )
         expect(delta[0]).eq(false)
-        expect(delta[1]).eq(toUsd(125)) // 5000 / 40,000 * 1000 => 125
+        expect(delta[1]).eq("117945357153945654677065680462402")
         expect(
             formatObj(
                 await getValue(
-                    vaultUtils.functions.validate_liquidation(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false, false),
+                    vault.functions.validate_liquidation(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false, false),
                 ),
             )[0],
         ).eq("1")
 
-        position = formatObj(await getPosition(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false, vaultStorage))
-        expect(position.size).eq(toUsd(1000)) // size
-        expect(position.collateral).eq(toUsd(99)) // collateral, 10 - 90 * 0.1%
-        expect(position.average_price).eq(toNormalizedPrice(40000)) // averagePrice
-        expect(position.entry_funding_rate).eq("0") // entryFundingRate
-        expect(position.reserve_amount).eq(expandDecimals(1000)) // reserveAmount
+        position = formatObj(await getPosition(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false, vault))
+        expect(position.size).eq(toUsd(1000))
+        expect(position.collateral).eq(toUsd(98.9))
+        expect(position.average_price).eq("40292667000000000000000000000000000")
+        expect(position.entry_funding_rate).eq("0")
+        expect(position.reserve_amount).eq("1001001001001")
 
-        expect(await getValStr(vaultStorage.functions.get_fee_reserves(toAsset(DAI)))).eq("140040000") // 1.4004
-        expect(await getValStr(vaultUtils.functions.get_reserved_amounts(toAsset(DAI)))).eq(expandDecimals(1000))
-        expect(await getValStr(vaultUtils.functions.get_guaranteed_usd(toAsset(DAI)))).eq("0")
-        expect(await getValStr(vaultUtils.functions.get_pool_amounts(toAsset(DAI)))).eq("100059960000") // 1000.5996
+        expect(await getValStr(vault.functions.get_fee_reserves(toAsset(DAI)))).eq("1399800999")
+        expect(await getValStr(vault.functions.get_reserved_amount(toAsset(DAI)))).eq("1001001001001")
+        expect(await getValStr(vault.functions.get_guaranteed_usd(toAsset(DAI)))).eq("0")
+        expect(await getValStr(vault.functions.get_pool_amounts(toAsset(DAI)))).eq("1001599200000")
         expect(await getBalance(deployer, DAI)).eq("0")
         expect(await getBalance(user0, DAI)).eq("0")
         expect(await getBalance(user1, DAI)).eq("0")
         expect(await getBalance(user2, DAI)).eq("0")
-        expect(await getValStr(vaultUtils.functions.get_global_short_sizes(toAsset(BTC)))).eq(toUsd(1000))
-        expect(await getValStr(vaultStorage.functions.get_global_short_average_prices(toAsset(BTC)))).eq(toNormalizedPrice(40000))
+        expect(await getValStr(vault.functions.get_global_short_sizes(toAsset(BTC)))).eq(toUsd(1000))
+        expect(await getValStr(vault.functions.get_global_short_average_prices(toAsset(BTC)))).eq(
+            "40292667000000000000000000000000000",
+        )
 
-        await call(vaultStorage.functions.set_liquidator(addrToAccount(deployer), true))
+        await call(vault.functions.set_liquidator(addrToAccount(deployer), true))
         await call(
-            vaultRouter.functions
+            vault.functions
                 .liquidate_position(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false, addrToAccount(user2))
                 .addContracts(attachedContracts),
         )
 
-        position = formatObj(await getPosition(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false, vaultStorage))
-        expect(position.size).eq("0") // size
+        position = formatObj(await getPosition(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false, vault))
+        expect(position.size).eq("0")
         expect(position.collateral).eq("0") // collateral
-        expect(position.average_price).eq("0") // averagePrice
-        expect(position.entry_funding_rate).eq("0") // entryFundingRate
-        expect(position.reserve_amount).eq("0") // reserveAmount
+        expect(position.average_price).eq("0")
+        expect(position.entry_funding_rate).eq("0")
+        expect(position.reserve_amount).eq("0")
 
-        expect(await getValStr(vaultStorage.functions.get_fee_reserves(toAsset(DAI)))).eq("240040000") // 2.4004
-        expect(await getValStr(vaultUtils.functions.get_reserved_amounts(toAsset(DAI)))).eq("0")
-        expect(await getValStr(vaultUtils.functions.get_guaranteed_usd(toAsset(DAI)))).eq("0")
-        expect(await getValStr(vaultUtils.functions.get_pool_amounts(toAsset(DAI)))).eq("109359960000") // 1093.5996
+        expect(await getValStr(vault.functions.get_fee_reserves(toAsset(DAI)))).eq("2398801998")
+        expect(await getValStr(vault.functions.get_reserved_amount(toAsset(DAI)))).eq("0")
+        expect(await getValStr(vault.functions.get_guaranteed_usd(toAsset(DAI)))).eq("0")
+        expect(await getValStr(vault.functions.get_pool_amounts(toAsset(DAI)))).eq("1094406392807")
         expect(await getBalance(deployer, DAI)).eq("0")
         expect(await getBalance(user0, DAI)).eq("0")
         expect(await getBalance(user1, DAI)).eq("0")
-        expect(await getBalance(user2, DAI)).eq(expandDecimals(5))
+        expect(await getBalance(user2, DAI)).eq("4995004995")
 
-        expect(await getValStr(vaultUtils.functions.get_global_short_sizes(toAsset(BTC)))).eq("0")
-        expect(await getValStr(vaultStorage.functions.get_global_short_average_prices(toAsset(BTC)))).eq(toNormalizedPrice(40000))
+        expect(await getValStr(vault.functions.get_global_short_sizes(toAsset(BTC)))).eq("0")
+        expect(await getValStr(vault.functions.get_global_short_average_prices(toAsset(BTC)))).eq(
+            "40292667000000000000000000000000000",
+        )
 
-        await call(BTCPricefeed.functions.set_latest_answer(toPrice(50000)))
-        await call(BTCPricefeed.functions.set_latest_answer(toPrice(50000)))
-        await call(BTCPricefeed.functions.set_latest_answer(toPrice(50000)))
+        await call(getUpdatePriceDataCall(toAsset(BTC), toPrice(50000), vaultPricefeed, priceUpdateSigner))
+        await call(getUpdatePriceDataCall(toAsset(BTC), toPrice(50000), vaultPricefeed, priceUpdateSigner))
+        await call(getUpdatePriceDataCall(toAsset(BTC), toPrice(50000), vaultPricefeed, priceUpdateSigner))
 
         await call(DAI.functions.mint(addrToAccount(user0), expandDecimals(20)))
         await call(
-            vaultRouter
+            vault
                 .as(user0)
                 .functions.increase_position(addrToAccount(user0), toAsset(DAI), toAsset(BTC), toUsd(100), false)
                 .callParams({
@@ -815,17 +718,9 @@ describe("VaultRouter.liquidateShortPosition", function () {
                 .addContracts(attachedContracts),
         )
 
-        expect(await getValStr(vaultUtils.functions.get_global_short_sizes(toAsset(BTC)))).eq(toUsd(100))
-        expect(await getValStr(vaultStorage.functions.get_global_short_average_prices(toAsset(BTC)))).eq(toNormalizedPrice(50000))
-
-        position = formatObj(await getPosition(addrToAccount(user0), toAsset(DAI), toAsset(BTC), false, vaultStorage))
-        await validateVaultRouterBalance(
-            expect,
-            vault,
-            vaultStorage,
-            vaultUtils,
-            DAI,
-            BigNumber.from(position.collateral).mul(expandDecimals(10)).div(expandDecimals(10, 30)).toString(),
+        expect(await getValStr(vault.functions.get_global_short_sizes(toAsset(BTC)))).eq(toUsd(100))
+        expect(await getValStr(vault.functions.get_global_short_average_prices(toAsset(BTC)))).eq(
+            "49950000000000000000000000000000000",
         )
     })
 })

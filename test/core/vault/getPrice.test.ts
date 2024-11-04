@@ -1,20 +1,6 @@
 import { expect, use } from "chai"
-import { Provider, Wallet, WalletUnlocked } from "fuels"
-import {
-    Fungible,
-    Pricefeed,
-    TimeDistributor,
-    Rusd,
-    Utils,
-    VaultRouter,
-    VaultPricefeed,
-    VaultStorage,
-    VaultUtils,
-    Vault,
-    YieldTracker,
-    VaultRusd,
-    VaultPosition,
-} from "../../../types"
+import { Provider, Signer, Wallet, WalletUnlocked } from "fuels"
+import { Fungible, TimeDistributor, Rusd, Utils, VaultPricefeed, YieldTracker, Vault } from "../../../types"
 import { deploy, getValStr, call } from "../../utils/utils"
 import { addrToAccount, contrToAccount, toAddress, toContract } from "../../utils/account"
 import { expandDecimals, toPrice, toUsd } from "../../utils/units"
@@ -22,11 +8,18 @@ import { toAsset } from "../../utils/asset"
 import { useChai } from "../../utils/chai"
 import { DAI_MAX_LEVERAGE, getDaiConfig } from "../../utils/vault"
 import { WALLETS } from "../../utils/wallets"
-import { DECIMALS } from "../../utils/constants"
+import {
+    BNB_PRICEFEED_ID,
+    BTC_PRICEFEED_ID,
+    DAI_PRICEFEED_ID,
+    getUpdatePriceDataCall,
+    USDC_PRICEFEED_ID,
+} from "../../utils/mock-pyth"
 
 use(useChai)
 
-describe("VaultRouter.getPrice", function () {
+describe("Vault.getPrice", function () {
+    let priceUpdateSigner: Signer
     let deployer: WalletUnlocked
     let user0: WalletUnlocked
     let user1: WalletUnlocked
@@ -34,19 +27,10 @@ describe("VaultRouter.getPrice", function () {
     let user3: WalletUnlocked
     let utils: Utils
     let BNB: Fungible
-    let BNBPricefeed: Pricefeed
     let DAI: Fungible
-    let DAIPricefeed: Pricefeed
     let BTC: Fungible
-    let BTCPricefeed: Pricefeed
     let USDC: Fungible
-    let USDCPricefeed: Pricefeed
-    let vaultRouter: VaultRouter
-    let vaultStorage: VaultStorage
-    let vaultUtils: VaultUtils
     let vault: Vault
-    let vaultRusd: VaultRusd
-    let vaultPosition: VaultPosition
     let rusd: Rusd
 
     let vaultPricefeed: VaultPricefeed
@@ -54,106 +38,34 @@ describe("VaultRouter.getPrice", function () {
     let yieldTracker: YieldTracker
 
     beforeEach(async () => {
-        const FUEL_NETWORK_URL = "http://127.0.0.1:4000/v1/graphql"
-        const localProvider = await Provider.create(FUEL_NETWORK_URL)
+        const provider = await Provider.create("http://127.0.0.1:4000/v1/graphql")
 
-        const wallets = WALLETS.map((k) => Wallet.fromPrivateKey(k, localProvider))
+        const wallets = WALLETS.map((k) => Wallet.fromPrivateKey(k, provider))
         ;[deployer, user0, user1, user2, user3] = wallets
+        priceUpdateSigner = new Signer(WALLETS[0])
 
         /*
             NativeAsset + Pricefeed
         */
         BNB = await deploy("Fungible", deployer)
-        BNBPricefeed = await deploy("Pricefeed", deployer)
-
         DAI = await deploy("Fungible", deployer)
-        DAIPricefeed = await deploy("Pricefeed", deployer)
-
         BTC = await deploy("Fungible", deployer)
-        BTCPricefeed = await deploy("Pricefeed", deployer)
-
         USDC = await deploy("Fungible", deployer)
-        USDCPricefeed = await deploy("Pricefeed", deployer)
-
-        await call(BNBPricefeed.functions.initialize(addrToAccount(deployer), "BNB Pricefeed"))
-        await call(DAIPricefeed.functions.initialize(addrToAccount(deployer), "DAI Pricefeed"))
-        await call(BTCPricefeed.functions.initialize(addrToAccount(deployer), "BTC Pricefeed"))
-        await call(USDCPricefeed.functions.initialize(addrToAccount(deployer), "USDC Pricefeed"))
 
         /*
-            VaultRouter + Router + RUSD
+            Vault + Router + RUSD
         */
         utils = await deploy("Utils", deployer)
-        vaultStorage = await deploy("VaultStorage", deployer)
-        vaultUtils = await deploy("VaultUtils", deployer)
         vault = await deploy("Vault", deployer)
-        vaultRouter = await deploy("VaultRouter", deployer)
-        vaultRusd = await deploy("VaultRusd", deployer)
-        vaultPosition = await deploy("VaultPosition", deployer)
         vaultPricefeed = await deploy("VaultPricefeed", deployer)
         rusd = await deploy("Rusd", deployer)
         timeDistributor = await deploy("TimeDistributor", deployer)
         yieldTracker = await deploy("YieldTracker", deployer)
 
-        await call(rusd.functions.initialize(toContract(vaultRusd), toAddress(user0)))
+        await call(rusd.functions.initialize(toContract(vault), toAddress(user0)))
 
-        await call(
-            vaultStorage.functions.initialize(
-                addrToAccount(deployer),
-                toContract(rusd),
-                toAsset(rusd), // RUSD native asset
-                toContract(vaultPricefeed),
-            ),
-        )
-        await call(
-            vaultUtils.functions.initialize(
-                addrToAccount(deployer),
-                toContract(vaultRouter),
-                toContract(vaultStorage),
-                toContract(vault),
-            ),
-        )
-        await call(
-            vaultRouter.functions.initialize(
-                addrToAccount(deployer),
-                toContract(vaultStorage),
-                toContract(vaultUtils),
-                toContract(vault),
-                toContract(vaultRusd),
-                toContract(vaultPosition),
-            ),
-        )
-        await call(vaultStorage.functions.write_authorize(contrToAccount(vaultRouter), true))
-        await call(vaultStorage.functions.write_authorize(contrToAccount(vaultUtils), true))
-        await call(vaultStorage.functions.write_authorize(contrToAccount(vaultRusd), true))
-        await call(vaultStorage.functions.write_authorize(contrToAccount(vaultPosition), true))
-
-        await call(vaultUtils.functions.write_authorize(contrToAccount(vaultRouter), true))
-        await call(vaultUtils.functions.write_authorize(contrToAccount(vaultRusd), true))
-        await call(vaultUtils.functions.write_authorize(contrToAccount(vaultPosition), true))
-
-        await call(vault.functions.initialize(addrToAccount(deployer)))
-        await call(vault.functions.set_vault(toContract(vaultRusd), true))
-        await call(vault.functions.set_vault(toContract(vaultPosition), true))
-
-        await call(
-            vaultRusd.functions.initialize(
-                addrToAccount(deployer),
-                toContract(vaultRouter),
-                toContract(vaultStorage),
-                toContract(vaultUtils),
-                toContract(vault),
-            ),
-        )
-        await call(
-            vaultPosition.functions.initialize(
-                addrToAccount(deployer),
-                toContract(vaultRouter),
-                toContract(vaultStorage),
-                toContract(vaultUtils),
-                toContract(vault),
-            ),
-        )
+        await call(vault.functions.initialize(addrToAccount(deployer), toAsset(rusd), toContract(rusd)))
+        await call(vault.functions.set_pricefeed_provider(toContract(vaultPricefeed)))
 
         await call(yieldTracker.functions.initialize(toContract(rusd)))
         await call(yieldTracker.functions.set_time_distributor(toContract(timeDistributor)))
@@ -163,14 +75,14 @@ describe("VaultRouter.getPrice", function () {
         await call(BNB.functions.mint(contrToAccount(timeDistributor), 5000))
         await call(rusd.functions.set_yield_trackers([{ bits: contrToAccount(yieldTracker).value }]))
 
-        await call(vaultPricefeed.functions.initialize(addrToAccount(deployer)))
-        await call(vaultPricefeed.functions.set_asset_config(toAsset(BNB), toContract(BNBPricefeed), DECIMALS, false))
-        await call(vaultPricefeed.functions.set_asset_config(toAsset(DAI), toContract(DAIPricefeed), DECIMALS, false))
-        await call(vaultPricefeed.functions.set_asset_config(toAsset(BTC), toContract(BTCPricefeed), DECIMALS, false))
-        await call(vaultPricefeed.functions.set_asset_config(toAsset(USDC), toContract(USDCPricefeed), DECIMALS, true))
+        await call(vaultPricefeed.functions.initialize(addrToAccount(deployer), toAddress(deployer)))
+        await call(vaultPricefeed.functions.set_asset_config(toAsset(BNB), BNB_PRICEFEED_ID, 9))
+        await call(vaultPricefeed.functions.set_asset_config(toAsset(DAI), DAI_PRICEFEED_ID, 9))
+        await call(vaultPricefeed.functions.set_asset_config(toAsset(BTC), BTC_PRICEFEED_ID, 9))
+        await call(vaultPricefeed.functions.set_asset_config(toAsset(USDC), USDC_PRICEFEED_ID, 9))
 
         await call(
-            vaultUtils.functions.set_funding_rate(
+            vault.functions.set_funding_rate(
                 8 * 3600, // funding_interval (8 hours)
                 600, // fundingRateFactor
                 600, // stableFundingRateFactor
@@ -179,16 +91,16 @@ describe("VaultRouter.getPrice", function () {
     })
 
     it("get_price", async () => {
-        await call(DAIPricefeed.functions.set_latest_answer(toPrice(1)))
-        await call(vaultStorage.functions.set_asset_config(...getDaiConfig(DAI)))
-        expect(await getValStr(vaultPricefeed.functions.get_price(toAsset(DAI), true))).eq(expandDecimals(1, 30))
+        await call(getUpdatePriceDataCall(toAsset(DAI), toPrice(1), vaultPricefeed, priceUpdateSigner))
+        await call(vault.functions.set_asset_config(...getDaiConfig(DAI)))
+        expect(await getValStr(vaultPricefeed.functions.get_price(toAsset(DAI), true))).eq("1001000000000000000000000000000")
 
-        await call(DAIPricefeed.functions.set_latest_answer(toPrice(1.1)))
-        expect(await getValStr(vaultPricefeed.functions.get_price(toAsset(DAI), true))).eq(expandDecimals(11, 29))
+        await call(getUpdatePriceDataCall(toAsset(DAI), toPrice(1.1), vaultPricefeed, priceUpdateSigner))
+        expect(await getValStr(vaultPricefeed.functions.get_price(toAsset(DAI), true))).eq("1101100000000000000000000000000")
 
-        await call(USDCPricefeed.functions.set_latest_answer(toPrice(1)))
+        await call(getUpdatePriceDataCall(toAsset(USDC), toPrice(1), vaultPricefeed, priceUpdateSigner))
         await call(
-            vaultStorage.functions.set_asset_config(
+            vault.functions.set_asset_config(
                 toAsset(USDC), // _token
                 8, // _tokenDecimals
                 10000, // _tokenWeight
@@ -199,41 +111,28 @@ describe("VaultRouter.getPrice", function () {
             ),
         )
 
-        expect(await getValStr(vaultPricefeed.functions.get_price(toAsset(USDC), true))).eq(expandDecimals(1, 30))
-        await call(USDCPricefeed.functions.set_latest_answer(toPrice(1.1)))
-        expect(await getValStr(vaultPricefeed.functions.get_price(toAsset(USDC), true))).eq(expandDecimals(11, 29))
+        expect(await getValStr(vaultPricefeed.functions.get_price(toAsset(USDC), true))).eq("1001000000000000000000000000000")
+        await call(getUpdatePriceDataCall(toAsset(USDC), toPrice(1.1), vaultPricefeed, priceUpdateSigner))
+        expect(await getValStr(vaultPricefeed.functions.get_price(toAsset(USDC), true))).eq("1101100000000000000000000000000")
 
-        await call(vaultPricefeed.functions.set_max_strict_price_deviation(expandDecimals(1, 29)))
-        expect(await getValStr(vaultPricefeed.functions.get_price(toAsset(USDC), true))).eq(expandDecimals(1, 30))
+        // await call(vaultPricefeed.functions.set_max_strict_price_deviation(expandDecimals(1, 29)))
+        expect(await getValStr(vaultPricefeed.functions.get_price(toAsset(USDC), true))).eq("1101100000000000000000000000000")
 
-        await call(USDCPricefeed.functions.set_latest_answer(toPrice(1.11)))
-        expect(await getValStr(vaultPricefeed.functions.get_price(toAsset(USDC), true))).eq(expandDecimals(111, 28))
-        expect(await getValStr(vaultPricefeed.functions.get_price(toAsset(USDC), false))).eq(expandDecimals(1, 30))
+        await call(getUpdatePriceDataCall(toAsset(USDC), toPrice(1.11), vaultPricefeed, priceUpdateSigner))
+        expect(await getValStr(vaultPricefeed.functions.get_price(toAsset(USDC), true))).eq("1111110000000000000000000000000")
+        expect(await getValStr(vaultPricefeed.functions.get_price(toAsset(USDC), false))).eq("1108890000000000000000000000000")
 
-        await call(USDCPricefeed.functions.set_latest_answer(toPrice(0.9)))
-        expect(await getValStr(vaultPricefeed.functions.get_price(toAsset(USDC), true))).eq(expandDecimals(111, 28))
-        expect(await getValStr(vaultPricefeed.functions.get_price(toAsset(USDC), false))).eq(expandDecimals(1, 30))
+        await call(getUpdatePriceDataCall(toAsset(USDC), toPrice(0.9), vaultPricefeed, priceUpdateSigner))
+        expect(await getValStr(vaultPricefeed.functions.get_price(toAsset(USDC), true))).eq("900900000000000000000000000000")
+        expect(await getValStr(vaultPricefeed.functions.get_price(toAsset(USDC), false))).eq("899100000000000000000000000000")
 
-        await call(vaultPricefeed.functions.set_spread_basis_points(toAsset(USDC), 20))
-        expect(await getValStr(vaultPricefeed.functions.get_price(toAsset(USDC), false))).eq(expandDecimals(1, 30))
+        await call(getUpdatePriceDataCall(toAsset(USDC), toPrice(0.89), vaultPricefeed, priceUpdateSigner))
+        expect(await getValStr(vaultPricefeed.functions.get_price(toAsset(USDC), true))).eq("890890000000000000000000000000")
+        expect(await getValStr(vaultPricefeed.functions.get_price(toAsset(USDC), false))).eq("889110000000000000000000000000")
 
-        await call(vaultPricefeed.functions.set_spread_basis_points(toAsset(USDC), 0))
-        await call(USDCPricefeed.functions.set_latest_answer(toPrice(0.89)))
-        await call(USDCPricefeed.functions.set_latest_answer(toPrice(0.89)))
-        expect(await getValStr(vaultPricefeed.functions.get_price(toAsset(USDC), true))).eq(expandDecimals(1, 30))
-        expect(await getValStr(vaultPricefeed.functions.get_price(toAsset(USDC), false))).eq(expandDecimals(89, 28))
+        await call(getUpdatePriceDataCall(toAsset(BTC), toPrice(40000), vaultPricefeed, priceUpdateSigner))
+        expect(await getValStr(vaultPricefeed.functions.get_price(toAsset(BTC), true))).eq("40040000000000000000000000000000000")
 
-        await call(vaultPricefeed.functions.set_spread_basis_points(toAsset(USDC), 20))
-        expect(await getValStr(vaultPricefeed.functions.get_price(toAsset(USDC), false))).eq(expandDecimals(89, 28))
-
-        await call(vaultPricefeed.functions.set_use_v2_pricing(true))
-        expect(await getValStr(vaultPricefeed.functions.get_price(toAsset(USDC), false))).eq(expandDecimals(89, 28))
-
-        await call(vaultPricefeed.functions.set_spread_basis_points(toAsset(BTC), 0))
-        await call(BTCPricefeed.functions.set_latest_answer(toPrice(40000)))
-        expect(await getValStr(vaultPricefeed.functions.get_price(toAsset(BTC), true))).eq(expandDecimals(40000, 30))
-
-        await call(vaultPricefeed.functions.set_spread_basis_points(toAsset(BTC), 20))
-        expect(await getValStr(vaultPricefeed.functions.get_price(toAsset(BTC), false))).eq(expandDecimals(39920, 30))
+        expect(await getValStr(vaultPricefeed.functions.get_price(toAsset(BTC), false))).eq("39960000000000000000000000000000000")
     })
 })

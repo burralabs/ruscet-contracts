@@ -9,27 +9,67 @@ __     __          _ _     ____       _           __               _
    \_/ \__,_|\__,_|_|\__| |_|   |_|  |_|\___\___|_|  \___|\___|\__,_|
 */
 
+mod events;
 mod constants;
 mod errors;
 
+use pyth_interface::{
+    data_structures::price::{Price, PriceFeedId},
+    PythCore
+};
 use std::{
-    math::*,
+    block::timestamp,
+    bytes::Bytes,
     context::*,
+    convert::TryFrom,
+    math::*,
+    primitive_conversions::u64::*,
     revert::require,
-    primitive_conversions::u64::*
+    storage::storage_vec::*,
+    vec::Vec,
+    b512::B512,
+	ecr::ec_recover_address,
 };
 use std::hash::*;
 use helpers::{
-    time::get_unix_timestamp,
     context::*, 
     zero::*, 
     utils::*,
-    math::*,
 };
 use core_interfaces::vault_pricefeed::VaultPricefeed;
-use interfaces::pricefeed::Pricefeed;
 use constants::*;
 use errors::*;
+use events::*;
+
+/*
+    // ------------------------ Format of Pyth Price ------------------------
+    From: https://github.com/pyth-network/pyth-crosschain/blob/4ab64d2539a749e51e1281bdd7744781f5e9df8c/target_chains/fuel/contracts/pyth-interface/src/data_structures/price.sw
+
+    pub struct Price {
+        // Confidence interval around the price
+        pub confidence: u64,
+        // Price exponent
+        // This value represents the absolute value of an i32 in the range -255 to 0. Values other than 0, should be considered negative:
+        // exponent of 5 means the Pyth Price exponent was -5
+        pub exponent: u32,
+        // Price
+        pub price: u64,
+        // The TAI64 timestamp describing when the price was published
+        pub publish_time: u64,
+    }
+*/
+
+struct PriceMessage {
+	asset: AssetId,
+	price: u64,
+}
+
+impl Hash for PriceMessage {
+    fn hash(self, ref mut state: Hasher) {
+        self.asset.hash(state);
+        self.price.hash(state);
+    }
+}
 
 storage {
     // gov is not restricted to an `Address` (EOA) or a `Contract` (external)
@@ -37,39 +77,33 @@ storage {
     gov: Account = ZERO_ACCOUNT,
     is_initialized: bool = false,
 
-    is_amm_enabled: bool = false,
-    is_secondary_price_enabled: bool = false,
-    use_v2_pricing: bool = false,
-    favor_primary_price: bool = false,
+    // asset -> pyth pricefeed id
+    pyth_pricefeed: StorageMap<AssetId, PriceFeedId> = StorageMap {},
+    // pyth pricefeed -> price
+    prices: StorageMap<PriceFeedId, Price> = StorageMap {},
+    // asset -> decimals
+    decimals: StorageMap<AssetId, u32> = StorageMap {},
 
-    price_sample_space: u64 = 3,
-    max_strict_price_deviation: u256 = 0,
-    spread_threshold_basis_points: u64 = 30,
+    price_signer: Address = ZERO_ADDRESS,
 
-    secondary_pricefeed: ContractId = ZERO_CONTRACT,
-
-    pricefeeds: StorageMap<AssetId, ContractId> = StorageMap {},
-    price_decimals: StorageMap<AssetId, u8> = StorageMap {},
-    spread_basis_points: StorageMap<AssetId, u64> = StorageMap {},
-    // Chainlink can return prices for stablecoins
-    // that differs from 1 USD by a larger percentage than stableSwapFeeBasisPoints
-    // we use strictStableTokens to cap the price to 1 USD
-    // this allows us to configure stablecoins like DAI as being a stableToken
-    // while not being a strictStableToken
-    strict_stable_assets: StorageMap<AssetId, bool> = StorageMap {},
-
-    adjustment_basis_points: StorageMap<AssetId, u64> = StorageMap {},
-    is_adjustment_additive: StorageMap<AssetId, bool> = StorageMap {},
-    last_adjustment_timings: StorageMap<AssetId, u64> = StorageMap {},
+    // these values are in the Tai64 format, and should not be confused with being in seconds
+    max_price_aheadness: u64 = 30,
+    max_price_staleness: u64 = 100,
 }
 
 impl VaultPricefeed for Contract {
     #[storage(read, write)]
-    fn initialize(gov: Account) {
+    fn initialize(
+        gov: Account,
+        price_signer: Address
+    ) {
         require(!storage.is_initialized.read(), Error::VaultPriceFeedAlreadyInitialized);
         storage.is_initialized.write(true);
         
         storage.gov.write(gov);
+        storage.price_signer.write(price_signer);
+        log(SetGov { gov });
+        log(SetPriceSigner { price_signer });
     }
 
     /*
@@ -80,170 +114,67 @@ impl VaultPricefeed for Contract {
       /_/_/    /_/   \_\__,_|_| |_| |_|_|_| |_|                         
     */
     #[storage(read, write)]
-    fn set_adjustment(
+    fn set_gov(gov: Account) {
+        _only_gov();
+        storage.gov.write(gov);
+        log(SetGov { gov });
+    }
+
+    #[storage(read, write)]
+    fn set_price_signer(price_signer: Address) {
+        _only_gov();
+        storage.price_signer.write(price_signer);
+        log(SetPriceSigner { price_signer });
+    }
+
+    #[storage(read, write)]
+    fn set_pyth_pricefeed(
         asset: AssetId,
-        is_additive: bool,
-        adjustment_bps: u64
+        pricefeed_id: PriceFeedId,
+        decimals: u32
     ) {
         _only_gov();
-        require(
-            adjustment_bps < MAX_ADJUSTMENT_BASIS_POINTS,
-            Error::VaultPriceFeedInvalidAdjustmentBps
-        );
-
-        storage.is_adjustment_additive.insert(asset, is_additive);
-        storage.adjustment_basis_points.insert(asset, adjustment_bps);
-        storage.last_adjustment_timings.insert(asset, get_unix_timestamp());
+        storage.pyth_pricefeed.insert(asset, pricefeed_id);
+        storage.decimals.insert(asset, decimals);
+        log(SetPythPricefeed { asset, pricefeed_id, decimals });
     }
 
     #[storage(read, write)]
-    fn set_use_v2_pricing(use_v2_pricing: bool) {
+    fn set_pyth_price_configs(
+        max_price_aheadness: u64,
+        max_price_staleness: u64
+    ) {
         _only_gov();
-        storage.use_v2_pricing.write(use_v2_pricing);
-    }
-
-    #[storage(read, write)]
-    fn set_is_amm_enabled(is_enabled: bool) {
-        _only_gov();
-        storage.is_amm_enabled.write(is_enabled);
-    }
-
-    #[storage(read, write)]
-    fn set_is_secondary_price_enabled(is_enabled: bool) {
-        _only_gov();
-        storage.is_secondary_price_enabled.write(is_enabled);
-    }
-
-    #[storage(read, write)]
-    fn set_secondary_pricefeed(secondary_pricefeed: ContractId) {
-        _only_gov();
-        storage.secondary_pricefeed.write(secondary_pricefeed);
-    }
-
-    #[storage(read, write)]
-    fn set_spread_basis_points(asset: AssetId, spread_basis_points: u64) {
-        _only_gov();
-        require(
-            spread_basis_points <= MAX_SPREAD_BASIS_POINTS,
-            Error::VaultPriceFeedInvalidSpreadBasisPoints
-        );
-        storage.spread_basis_points.insert(asset, spread_basis_points);
-    }
-
-    #[storage(read, write)]
-    fn set_spread_threshold_basis_points(spread_threshold_basis_points: u64) {
-        _only_gov();
-        storage.spread_threshold_basis_points.write(spread_threshold_basis_points);
-    }
-
-    #[storage(read, write)]
-    fn set_favor_primary_price(favor_primary_price: bool) {
-        _only_gov();
-        storage.favor_primary_price.write(favor_primary_price);
-    }
-
-    #[storage(read, write)]
-    fn set_price_sample_space(price_sample_space: u64) {
-        _only_gov();
-        require(
-            price_sample_space > 0,
-            Error::VaultPriceFeedInvalidPriceSampleSpace
-        );
-        storage.price_sample_space.write(price_sample_space);
-    }
-
-    #[storage(read, write)]
-    fn set_max_strict_price_deviation(max_strict_price_deviation: u256) {
-        _only_gov();
-        storage.max_strict_price_deviation.write(max_strict_price_deviation);
+        storage.max_price_aheadness.write(max_price_aheadness);
+        storage.max_price_staleness.write(max_price_staleness);
+        log(SetPythPriceConfigs { max_price_aheadness, max_price_staleness });
     }
 
     #[storage(read, write)]
     fn set_asset_config(
         asset: AssetId,
-        pricefeed: ContractId,
-        price_decimals: u8,
-        is_strict_stable: bool
+        pyth_pricefeed: PriceFeedId,
+        decimals: u32
     ) {
         _only_gov();
-        storage.pricefeeds.insert(asset, pricefeed);
-        storage.price_decimals.insert(asset, price_decimals);
-        storage.strict_stable_assets.insert(asset, is_strict_stable);
+        storage.pyth_pricefeed.insert(asset, pyth_pricefeed);
+        storage.decimals.insert(asset, decimals);
+        log(SetPythPricefeed { asset, pricefeed_id: pyth_pricefeed, decimals });
     }
     
     /*
-          ____ __     ___               
+          ____ __     ___
          / / / \ \   / (_) _____      __
         / / /   \ \ / /| |/ _ \ \ /\ / /
-       / / /     \ V / | |  __/\ V  V / 
-      /_/_/       \_/  |_|\___| \_/\_/  
+       / / /     \ V / | |  __/\ V  V /
+      /_/_/       \_/  |_|\___| \_/\_/
     */
-    #[storage(read)]
-    fn get_adjustment_basis_points(asset: AssetId) -> u64 {
-        storage.adjustment_basis_points.get(asset).try_read().unwrap_or(0)
-    }
-
-    #[storage(read)]
-    fn is_adjustment_additive(asset: AssetId) -> bool {
-        storage.is_adjustment_additive.get(asset).try_read().unwrap_or(false)
-    }
-
     #[storage(read)]
     fn get_price(
         asset: AssetId,
         maximize: bool
     ) -> u256 {
-        let mut price = if storage.use_v2_pricing.read() {
-            _get_price_v2(asset, maximize, false)
-        } else {
-            _get_price_v1(asset, maximize, false)
-        };
-
-        let adjustment_bps = storage.adjustment_basis_points.get(asset)
-            .try_read().unwrap_or(0).as_u256();
-            
-        if adjustment_bps > 0 {
-            let is_additive = storage.is_adjustment_additive.get(asset).try_read().unwrap_or(false);
-
-            price = if is_additive {
-                price * (BASIS_POINTS_DIVISOR + adjustment_bps) / BASIS_POINTS_DIVISOR
-            } else {
-                price * (BASIS_POINTS_DIVISOR - adjustment_bps) / BASIS_POINTS_DIVISOR
-            };
-        }
-
-        price
-    }
-
-    #[storage(read)]
-    fn get_price_v1(
-        asset: AssetId,
-        maximize: bool,
-        include_amm_price: bool
-    ) -> u256 {
-        _get_price_v1(asset, maximize, include_amm_price)
-    }
-
-    #[storage(read)]
-    fn get_price_v2(
-        asset: AssetId,
-        maximize: bool,
-        include_amm_price: bool
-    ) -> u256 {
-        _get_price_v2(asset, maximize, include_amm_price)
-    }
-
-    #[storage(read)]
-    fn get_latest_primary_price(asset: AssetId) -> u256 {
-        _get_latest_primary_price(asset)
-    }
-
-    #[storage(read)]
-    fn get_primary_price(
-        asset: AssetId,
-        maximize: bool
-    ) -> u256 {
-        _get_primary_price(asset, maximize)
+        _get_price(asset, maximize)
     }
 
     /*
@@ -253,21 +184,34 @@ impl VaultPricefeed for Contract {
        / / /   |  __/| |_| | |_) | | | (__ 
       /_/_/    |_|    \__,_|_.__/|_|_|\___|
     */
-    // this is just a helper method to update the price of an asset directly from VaultPricefeed
-    // this will be removed in the future when Pyth prices are supported on-chain
-    #[storage(read)]
+    #[storage(read, write)]
     fn update_price(
         asset: AssetId,
-        new_price: u256
+        new_price: u64,
+        signature: B512
     ) {
-        let pricefeed_addr = storage.pricefeeds.get(asset).try_read().unwrap_or(ZERO_CONTRACT);
+        let message = sha256(PriceMessage { asset, price: new_price });
+        let recovered_address = ec_recover_address(signature, message).unwrap().bits();
         require(
-            pricefeed_addr.non_zero(),
+            recovered_address == storage.price_signer.read().bits(),
+            Error::VaultPriceFeedInvalidSignature
+        );
+        let pricefeed_id = storage.pyth_pricefeed.get(asset).try_read().unwrap_or(ZERO);
+        require(
+            pricefeed_id != ZERO,
             Error::VaultPriceFeedInvalidPriceFeedToUpdate
         );
 
-        let pricefeed = abi(Pricefeed, pricefeed_addr.into());
-        pricefeed.set_latest_answer(new_price);
+        let decimals = storage.decimals.get(asset).try_read().unwrap_or(0);
+
+        let price = Price {
+            confidence: 0,
+            exponent: decimals,
+            price: new_price,
+            publish_time: timestamp(),
+        };
+        storage.prices.insert(pricefeed_id, price);
+        log(SetPrice { asset, price, timestamp: price.publish_time });
     }
 }
 
@@ -284,252 +228,48 @@ fn _only_gov() {
 }
 
 #[storage(read)]
-fn _get_price_v1(
-    asset: AssetId,
-    maximize: bool,
-    include_amm_price: bool
-) -> u256 {
-    let mut price = _get_primary_price(asset, maximize);
-
-    if include_amm_price && storage.is_amm_enabled.read() {
-        let amm_price = _get_amm_price(asset);
-
-        if amm_price > 0 {
-            if maximize && amm_price > price {
-                price = amm_price;
-            }
-
-            if !maximize && amm_price < price {
-                price = amm_price;
-            }
-        }
-    }
-
-    if storage.is_secondary_price_enabled.read() {
-        price = _get_secondary_price(asset, price, maximize);
-    }
-
-    if storage.strict_stable_assets.get(asset).try_read().unwrap_or(false) {
-        let delta = if price > ONE_USD {
-            price - ONE_USD
-        } else {
-            ONE_USD - price
-        };
-
-        if delta <= storage.max_strict_price_deviation.read() {
-            return ONE_USD;
-        }
-
-        // if _maximise and price is e.g. 1.02, return 1.02
-        if maximize && price > ONE_USD {
-            return price;
-        }
-
-        // if !_maximise and price is e.g. 0.98, return 0.98
-        if !maximize && price < ONE_USD {
-            return price;
-        }
-
-        return ONE_USD;
-    }
-
-    let spread_basis_points = storage.spread_basis_points.get(asset).try_read().unwrap_or(0).as_u256();
-
-    if maximize {
-        return price * (BASIS_POINTS_DIVISOR + spread_basis_points) / BASIS_POINTS_DIVISOR;
-    }
-
-    price * (BASIS_POINTS_DIVISOR - spread_basis_points) / BASIS_POINTS_DIVISOR
-}
-
-#[storage(read)]
-fn _get_price_v2(
-    asset: AssetId,
-    maximize: bool,
-    include_amm_price: bool
-) -> u256 {
-    let mut price = _get_primary_price(asset, maximize);
-
-    if include_amm_price && storage.is_amm_enabled.read() {
-        price = _get_amm_price_v2(asset, maximize, price);
-    }
-
-    if storage.is_secondary_price_enabled.read() {
-        price = _get_secondary_price(asset, price, maximize);
-    }
-
-    if storage.strict_stable_assets.get(asset).try_read().unwrap_or(false) {
-        let delta = if price > ONE_USD {
-            price - ONE_USD
-        } else {
-            ONE_USD - price
-        };
-
-        if delta <= storage.max_strict_price_deviation.read() {
-            return ONE_USD;
-        }
-
-        // if _maximise and price is e.g. 1.02, return 1.02
-        if maximize && price > ONE_USD {
-            return price;
-        }
-
-        // if !_maximise and price is e.g. 0.98, return 0.98
-        if !maximize && price < ONE_USD {
-            return price;
-        }
-
-        return ONE_USD;
-    }
-
-    let spread_basis_points = storage.spread_basis_points.get(asset)
-        .try_read().unwrap_or(0).as_u256();
-
-    if maximize {
-        return price * (BASIS_POINTS_DIVISOR + spread_basis_points) / BASIS_POINTS_DIVISOR;
-    }
-
-    price * (BASIS_POINTS_DIVISOR - spread_basis_points) / BASIS_POINTS_DIVISOR
-}
-
-#[storage(read)]
-fn _get_amm_price_v2(
-    asset: AssetId,
-    maximize: bool,
-    primary_price: u256
-) -> u256 {
-    let amm_price = _get_amm_price(asset);
-    if amm_price == 0 {
-        return primary_price;
-    }
-
-    let diff = if amm_price > primary_price {
-        amm_price - primary_price
-    } else {
-        primary_price - amm_price
-    };
-
-    if diff.mul(BASIS_POINTS_DIVISOR) < primary_price.mul(storage.spread_threshold_basis_points.read().as_u256()) {
-        if storage.favor_primary_price.read() {
-            return primary_price;
-        }
-        return amm_price;
-    }
-
-    if maximize && amm_price > primary_price {
-        return amm_price;
-    }
-
-    if !maximize && amm_price < primary_price {
-        return amm_price;
-    }
-
-    primary_price
-}
-
-#[storage(read)]
-fn _get_latest_primary_price(asset: AssetId) -> u256 {
-    let pricefeed_addr = storage.pricefeeds.get(asset).try_read().unwrap_or(ZERO_CONTRACT);
-    require(
-        pricefeed_addr.non_zero(),
-        Error::VaultPriceFeedInvalidPriceFeed
-    );
-
-    let price = abi(Pricefeed, pricefeed_addr.into()).latest_answer();
-    require(
-        price > 0,
-        Error::VaultPriceFeedInvalidPrice
-    );
-
-    price
-}
-
-#[storage(read)]
-fn _get_primary_price(
+fn _get_price(
     asset: AssetId,
     maximize: bool
 ) -> u256 {
-    let pricefeed_addr = storage.pricefeeds.get(asset).try_read().unwrap_or(ZERO_CONTRACT);
+    let pricefeed_id = storage.pyth_pricefeed.get(asset).try_read().unwrap_or(ZERO);
     require(
-        pricefeed_addr.non_zero(),
+        pricefeed_id != ZERO,
         Error::VaultPriceFeedInvalidPriceFeed
     );
 
-    let pricefeed = abi(Pricefeed, pricefeed_addr.into());
+    let mut price = storage.prices.get(pricefeed_id).try_read().unwrap_or(Price::new(0, 0, 0, 0));
 
-    let mut price: u256 = 0;
-    let latest_round_id = pricefeed.latest_round();
+    require(
+        price.price > 0,
+        Error::VaultPriceFeedCouldNotFetchPrice
+    );
 
-    let mut i = 0;
-    let mut p: u256 = 0;
-    let len = storage.price_sample_space.read();
-
-    while i < len {
-        if latest_round_id <= i {
-            break;
-        }
-
-        p = 0;
-
-        if i == 0 {
-            p = pricefeed.latest_answer();
-            require(p > 0, Error::VaultPriceFeedInvalidPriceIEq0);
-        } else {
-            let (_, v, _) = pricefeed.get_round_data(latest_round_id - i);
-            require(v > 0, Error::VaultPriceFeedInvalidPriceINeq0);
-            p = v;
-        }
-
-        if price == 0 {
-            price = p;
-            i += 1;
-            continue;
-        }
-
-        if maximize && p > price {
-            price = p;
-            i += 1;
-            continue;
-        }
-
-        if !maximize && p < price {
-            price = p;
-        }
-
-        i += 1;
+    // validate values
+    if price.publish_time < timestamp() {
+        let staleness = timestamp() - price.publish_time;
+        require(
+            staleness <= storage.max_price_staleness.read(),
+            Error::VaultPriceFeedPriceIsStale
+        );
+    } else {
+        let aheadness = price.publish_time - timestamp();
+        require(
+            aheadness <= storage.max_price_aheadness.read(),
+            Error::VaultPriceFeedPriceIsAhead
+        );
     }
 
-    require(price > 0, Error::VaultPriceFeedCouldNotFetchPrice);
+    // confidence is 0.1% of the price
+    let confidence = price.price / 1000;
 
+    if maximize {
+        price.price = price.price + confidence;
+    } else {
+        price.price = price.price - confidence;
+    }
+// -10160000000000000000000000000000
+// 
     // normalize price precision
-    let price_decimals = storage.price_decimals.get(asset).try_read().unwrap_or(0);
-
-    // @TODO: do we really price normalization? 
-    // @bug (potential)
-    // price // * PRICE_PRECISION / 10.pow(price_decimals.as_u32())
-    price * PRICE_PRECISION / 10.pow(price_decimals.as_u32()).as_u256()
-}
-
-#[storage(read)]
-fn _get_secondary_price(
-    asset: AssetId,
-    reference_price: u256,
-    maximize: bool 
-) -> u256 {
-    let secondary_pricefeed = storage.secondary_pricefeed.read();
-    if secondary_pricefeed.non_zero() {
-        return reference_price;
-    }
-
-    // @TODO: uncomment when secondary pricefeed is available
-    // abi(SecondaryPricefeed).get_price(
-    //     asset,
-    //     reference_price,
-    //     maximize
-    // )
-    0
-}
-
-fn _get_amm_price(asset: AssetId) -> u256 {
-    0
+    price.price.as_u256() * PRICE_PRECISION / 10.pow(price.exponent).as_u256()
 }

@@ -36,11 +36,11 @@ abi TimeDistributor {
     );
 
     /*
-          ____ __     ___               
+          ____ __     ___
          / / / \ \   / (_) _____      __
         / / /   \ \ / /| |/ _ \ \ /\ / /
-       / / /     \ V / | |  __/\ V  V / 
-      /_/_/       \_/  |_|\___| \_/\_/  
+       / / /     \ V / | |  __/\ V  V /
+      /_/_/       \_/  |_|\___| \_/\_/
     */
     #[storage(read)]
     fn get_intervals(receiver: Account) -> u64;
@@ -55,7 +55,7 @@ abi TimeDistributor {
     fn get_distribution_amount(receiver: Account) -> u64;
 
     /*
-          ____  ____        _     _ _      
+          ____  ____        _     _ _
          / / / |  _ \ _   _| |__ | (_) ___ 
         / / /  | |_) | | | | '_ \| | |/ __|
        / / /   |  __/| |_| | |_) | | | (__ 
