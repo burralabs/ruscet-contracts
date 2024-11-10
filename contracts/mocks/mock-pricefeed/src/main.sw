@@ -18,12 +18,15 @@ use std::{
     string::String
 };
 use std::hash::*;
-use helpers::{context::*, utils::*, zero::*};
+use helpers::{
+    utils::*, 
+    zero::*
+};
 use mock_interfaces::mock_pricefeed::MockPricefeed;
 use errors::*;
 
 storage {
-    gov: Account = ZERO_ACCOUNT,
+    gov: Identity = ZERO_ACCOUNT,
     is_initialized: bool = false,
     answer: u256 = 0,
     decimals: u8 = 9,
@@ -35,7 +38,7 @@ storage {
 impl MockPricefeed for Contract {
     #[storage(read, write)]
     fn initialize(
-        gov: Account,
+        gov: Identity,
         description: String
     ) {
         require(
@@ -50,7 +53,7 @@ impl MockPricefeed for Contract {
     }
 
     #[storage(read)]
-    fn gov() -> Account {
+    fn gov() -> Identity {
         storage.gov.read()
     }
 

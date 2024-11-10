@@ -10,9 +10,6 @@ use std::{
     storage::storage_string::*,
     string::String,
 };
-use helpers::{
-    context::Account
-};
 
 abi FungibleAsset {
     #[storage(read, write)]
@@ -51,7 +48,7 @@ abi FungibleAsset {
        from: https://github.com/FuelLabs/sway-standards/blob/master/standards/src3-mint-burn 
     */
     #[storage(read, write)]
-    fn mint(recipient: Account, amount: u64);
+    fn mint(recipient: Identity, amount: u64);
 
     #[payable]
     #[storage(read, write)]

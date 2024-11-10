@@ -4,7 +4,6 @@ library;
 use std::hash::*;
 
 use helpers::{
-    context::*,
     signed_256::*,
 };
 
@@ -19,7 +18,7 @@ pub struct Position {
 }
 
 pub struct PositionKey {
-    pub account: Account,
+    pub account: Identity,
     pub collateral_asset: AssetId,
     pub index_asset: AssetId,
     pub is_long: bool,
@@ -28,7 +27,7 @@ pub struct PositionKey {
 abi Vault {
     #[storage(read, write)]
     fn initialize(
-        gov: Account,
+        gov: Identity,
         rusd: AssetId,
         rusd_contr: ContractId,
     );
@@ -42,12 +41,12 @@ abi Vault {
     */
     #[storage(write)]
     fn set_liquidator(
-        liquidator: Account, 
+        liquidator: Identity, 
         is_active: bool
     );
 
     #[storage(write)]
-    fn set_gov(gov: Account);
+    fn set_gov(gov: Identity);
 
     #[storage(write)]
     fn set_pricefeed_provider(pricefeed_provider: ContractId);
@@ -99,7 +98,7 @@ abi Vault {
     #[storage(read, write)]
     fn withdraw_fees(
         asset: AssetId, 
-        receiver: Account
+        receiver: Identity
     ) -> u64;
 
     #[storage(read, write)]
@@ -118,7 +117,7 @@ abi Vault {
 
     #[storage(write)]
     fn set_approved_router(
-        router: Account, 
+        router: Identity, 
         is_active: bool
     );
 
@@ -145,21 +144,8 @@ abi Vault {
        / / /     \ V / | |  __/\ V  V /
       /_/_/       \_/  |_|\___| \_/\_/
     */
-    #[storage(read)]
-    fn get_position(
-        account: Account,
-        collateral_asset: AssetId,
-        index_asset: AssetId,
-        is_long: bool,
-    ) -> (
-        u256, u256, u256,
-        u256, u256, Signed256,
-        bool, u64,
-        Position
-    );
-
     fn get_position_key(
-        account: Account,
+        account: Identity,
         collateral_asset: AssetId,
         index_asset: AssetId,
         is_long: bool,
@@ -167,7 +153,7 @@ abi Vault {
 
     #[storage(read)]
     fn get_position_delta(
-        account: Account,
+        account: Identity,
         collateral_asset: AssetId,
         index_asset: AssetId,
         is_long: bool,
@@ -201,7 +187,7 @@ abi Vault {
 
     #[storage(read)]
     fn get_position_fee(
-        account: Account,
+        account: Identity,
         collateral_asset: AssetId,
         index_asset: AssetId,
         is_long: bool,
@@ -304,7 +290,7 @@ abi Vault {
 
     #[storage(read)]
     fn get_position_leverage(
-        account: Account,
+        account: Identity,
         collateral_asset: AssetId,
         index_asset: AssetId,
         is_long: bool,
@@ -359,11 +345,11 @@ abi Vault {
     fn get_global_short_delta(asset: AssetId) -> (bool, u256);
 
     #[storage(read)]
-    fn is_liquidator(account: Account) -> bool;
+    fn is_liquidator(account: Identity) -> bool;
 
     #[storage(read)]
     fn validate_liquidation(
-        account: Account,
+        account: Identity,
         collateral_asset: AssetId,
         index_asset: AssetId,
         is_long: bool,
@@ -388,20 +374,20 @@ abi Vault {
 
     #[payable]
     #[storage(read, write)]
-    fn buy_rusd(asset: AssetId, receiver: Account) -> u256;
+    fn buy_rusd(asset: AssetId, receiver: Identity) -> u256;
 
     #[payable]
     #[storage(read, write)]
-    fn sell_rusd(asset: AssetId, receiver: Account) -> u256;
+    fn sell_rusd(asset: AssetId, receiver: Identity) -> u256;
 
     #[payable]
     #[storage(read, write)]
-    fn swap(asset_in: AssetId, asset_out: AssetId, receiver: Account) -> u64;
+    fn swap(asset_in: AssetId, asset_out: AssetId, receiver: Identity) -> u64;
 
     #[payable]
     #[storage(read, write)]
     fn increase_position(
-        account: Account,
+        account: Identity,
         collateral_asset: AssetId,
         index_asset: AssetId,
         size_delta: u256,
@@ -410,22 +396,22 @@ abi Vault {
 
     #[storage(read, write)]
     fn decrease_position(
-        account: Account,
+        account: Identity,
         collateral_asset: AssetId,
         index_asset: AssetId,
         collateral_delta: u256,
         size_delta: u256,
         is_long: bool,
-        receiver: Account
+        receiver: Identity
     ) -> u256;
 
     #[storage(read, write)]
     fn liquidate_position(
-        account: Account,
+        account: Identity,
         collateral_asset: AssetId,
         index_asset: AssetId,
         is_long: bool,
-        fee_receiver: Account
+        fee_receiver: Identity
     );
 }
 

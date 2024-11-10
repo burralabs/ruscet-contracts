@@ -1,29 +1,12 @@
-import {
-    Account,
-    Address,
-    AddressAccount,
-    AddressIdentity,
-    ContractAccount,
-    ContractId,
-    ContractIdentity,
-    Identity,
-} from "./types"
+import { Address, AddressIdentity, ContractId, ContractIdentity, Identity } from "./types"
 
-export function addrToAccount(addr: any): AddressAccount {
-    return toAccount(addr, false) as any
-}
+export function toBits(addr: any): string {
+    if (addr["toB256"]) return addr.toB256()
+    if (addr["toHexString"]) return addr.toHexString()
+    if (addr["address"]) return addr.address.toHexString()
+    if (addr["id"]) return addr.id.toHexString()
 
-export function contrToAccount(addr: any): ContractAccount {
-    return toAccount(addr, true) as any
-}
-
-export function toAccount(addr: any, is_contract: boolean): Account {
-    if (addr["toB256"]) return { value: addr.toB256(), is_contract }
-    if (addr["toHexString"]) return { value: addr.toHexString(), is_contract }
-    if (addr["address"]) return { value: addr.address.toHexString(), is_contract }
-    if (addr["id"]) return { value: addr.id.toHexString(), is_contract }
-
-    return { value: addr, is_contract }
+    return addr
 }
 
 export function addrToIdentity(addr: any): AddressIdentity {
@@ -43,9 +26,9 @@ export function toIdentity(addr: any, is_contract: boolean): Identity {
 }
 
 export function toAddress(value: any): Address {
-    return { bits: toAccount(value, false).value }
+    return { bits: toBits(value) }
 }
 
 export function toContract(value: any): ContractId {
-    return { bits: toAccount(value, true).value }
+    return { bits: toBits(value) }
 }

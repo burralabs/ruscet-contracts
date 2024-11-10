@@ -5,10 +5,6 @@ use std::{
     string::String,
 };
 
-use helpers::{
-    context::Account,
-};
-
 abi RLP {
     #[storage(read, write)]
     fn initialize();
@@ -21,10 +17,10 @@ abi RLP {
       /_/_/    /_/   \_\__,_|_| |_| |_|_|_| |_|
     */
     #[storage(read, write)]
-    fn set_gov(gov: Account);
+    fn set_gov(gov: Identity);
 
     #[storage(read, write)]
-    fn set_minter(minter: Account, is_active: bool);
+    fn set_minter(minter: Identity, is_active: bool);
 
     /*
           ____ __     ___

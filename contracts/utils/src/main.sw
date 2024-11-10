@@ -9,7 +9,6 @@ use std::{
 	hash::*
 };
 use helpers::{
-	context::*,
 	transfer::transfer_assets
 };
 use core_interfaces::vault_pricefeed::*;
@@ -32,7 +31,7 @@ abi Utils {
 	) -> bool;
 
 	fn get_position_key(
-		account: Account,
+		account: Identity,
 		collateral_asset: AssetId,
 		index_asset: AssetId,
 		is_long: bool,
@@ -50,7 +49,7 @@ enum Error {
 }
 
 struct PositionKey {
-    pub account: Account,
+    pub account: Identity,
     pub collateral_asset: AssetId,
     pub index_asset: AssetId,
     pub is_long: bool,
@@ -108,7 +107,7 @@ impl Utils for Contract {
 
 		transfer_assets(
 			asset,
-			Account::from(contr),
+			Identity::ContractId(contr),
 			amount,
 		);
 
@@ -116,7 +115,7 @@ impl Utils for Contract {
 	}
 
 	fn get_position_key(
-		account: Account,
+		account: Identity,
 		collateral_asset: AssetId,
 		index_asset: AssetId,
 		is_long: bool,

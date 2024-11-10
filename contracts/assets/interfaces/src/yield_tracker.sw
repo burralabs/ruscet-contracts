@@ -5,10 +5,6 @@ use std::{
     string::String,
 };
 
-use helpers::{
-    context::Account,
-};
-
 abi YieldTracker {
     #[storage(read, write)]
     fn initialize(yield_asset: ContractId);
@@ -21,7 +17,7 @@ abi YieldTracker {
       /_/_/    /_/   \_\__,_|_| |_| |_|_|_| |_|                         
     */
     #[storage(read, write)]
-    fn set_gov(new_gov: Account);
+    fn set_gov(new_gov: Identity);
 
     #[storage(read, write)]
     fn set_time_distributor(time_distributor: ContractId);
@@ -38,7 +34,7 @@ abi YieldTracker {
 
     #[storage(read)]
     fn claimable(
-        account: Account,
+        account: Identity,
         // staked balance of the account
         yield_asset_staked_balance: u256
     ) -> u256;
@@ -52,15 +48,15 @@ abi YieldTracker {
     */
     #[storage(read, write)]
     fn update_rewards(
-        account: Account,
+        account: Identity,
         // staked balance of the account
         yield_asset_staked_balance: u256
     );
 
     #[storage(read, write)]
     fn claim(
-        account: Account,
-        receiver: Account,
+        account: Identity,
+        receiver: Identity,
         // staked balance of the account
         yield_asset_staked_balance: u256
     ) -> u256;

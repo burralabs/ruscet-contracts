@@ -29,7 +29,6 @@ use std::{
 };
 use std::hash::*;
 use helpers::{
-    context::*, 
     utils::*, 
     transfer::*,
     zero::*,
@@ -68,7 +67,7 @@ storage {
          | | | |  __/ | (_| |  / ___ \\__ \__ \  __/ |_ 
          |_| |_|\___|_|\__,_| /_/   \_\___/___/\___|\__|   
     */
-    gov: Account = ZERO_ACCOUNT,
+    gov: Identity = ZERO_ACCOUNT,
     staked_balance_handler: Address = ZERO_ADDRESS,
     is_initialized: bool = false,
     
@@ -82,16 +81,16 @@ storage {
 
     vaults: StorageMap<ContractId, bool> = StorageMap {},
     yield_trackers: StorageVec<ContractId> = StorageVec::<ContractId> {},
-    non_staking_accounts: StorageMap<Account, bool> = StorageMap {},
+    non_staking_accounts: StorageMap<Identity, bool> = StorageMap {},
     non_staking_supply: u64 = 0,
-    admins: StorageMap<Account, bool> = StorageMap {},
+    admins: StorageMap<Identity, bool> = StorageMap {},
 
     in_whitelist_mode: bool = false,
-    user_staked_balance: StorageMap<Account, u64> = StorageMap {},
+    user_staked_balance: StorageMap<Identity, u64> = StorageMap {},
 }
 
 struct Message {
-	account: Account,
+	account: Identity,
 	balance: u64,
 }
 
@@ -116,6 +115,23 @@ impl RUSD for Contract {
 
         storage.name.write_slice(String::from_ascii_str("RUSD"));
         storage.symbol.write_slice(String::from_ascii_str("RUSD"));
+
+        let sender = get_sender();
+        log(SetNameEvent { 
+            asset: _get_id(),
+            name: storage.name.read_slice(),
+            sender
+        });
+        log(SetSymbolEvent { 
+            asset: _get_id(),
+            symbol: storage.symbol.read_slice(),
+            sender
+        });
+        log(SetDecimalsEvent { 
+            asset: _get_id(),
+            decimals: DECIMALS,
+            sender
+        });
         
         let sender = get_sender();
         _set_gov(sender);
@@ -132,7 +148,10 @@ impl RUSD for Contract {
       /_/_/    /_/   \_\__,_|_| |_| |_|_|_| |_|                         
     */
     #[storage(read, write)]
-    fn set_vault(vault: ContractId, active: bool) {
+    fn set_vault(
+        vault: ContractId,
+        active: bool
+    ) {
         _only_gov();
         _set_vault(vault, active);
     }
@@ -160,7 +179,7 @@ impl YieldAsset for Contract {
       /_/_/    /_/   \_\__,_|_| |_| |_|_|_| |_|                         
     */
     #[storage(read, write)]
-    fn set_gov(gov: Account) {
+    fn set_gov(gov: Identity) {
         _only_gov();
         _set_gov(gov);
     }
@@ -185,13 +204,13 @@ impl YieldAsset for Contract {
     }
 
     #[storage(read, write)]
-    fn set_admin(account: Account, active: bool) {
+    fn set_admin(account: Identity, active: bool) {
         _only_gov();
         _set_admin(account, active);
     }
 
     #[storage(read, write)]
-    fn add_nonstaking_account(account: Account) {
+    fn add_nonstaking_account(account: Identity) {
         _only_admin();
         require(
             !storage.non_staking_accounts.get(account).try_read().unwrap_or(false),
@@ -204,7 +223,7 @@ impl YieldAsset for Contract {
     }
 
     #[storage(read, write)]
-    fn remove_nonstaking_account(account: Account) {
+    fn remove_nonstaking_account(account: Identity) {
         _only_admin();
         require(
             storage.non_staking_accounts.get(account).try_read().unwrap_or(false),
@@ -219,8 +238,8 @@ impl YieldAsset for Contract {
 
     #[storage(read)]
     fn recover_claim(
-        account: Account,
-        receiver: Account
+        account: Identity,
+        receiver: Identity
     ) {
         _only_admin();
         let mut i = 0;
@@ -236,7 +255,7 @@ impl YieldAsset for Contract {
     }
 
     #[storage(read)]
-    fn claim(receiver: Account) {
+    fn claim(receiver: Identity) {
         _only_admin();
         let mut i = 0;
         let len = storage.yield_trackers.len();
@@ -278,7 +297,7 @@ impl YieldAsset for Contract {
     */
     #[storage(read, write)]
     fn set_user_staked_balance(
-        account: Account,
+        account: Identity,
         amount: u64,
         signature: B512
     ) {
@@ -372,7 +391,7 @@ fn _only_authorized_vaults() {
 }
 
 #[storage(read, write)]
-fn _set_admin(account: Account, active: bool) {
+fn _set_admin(account: Identity, active: bool) {
     if(active) {
         storage.admins.insert(account, true);
     } else {
@@ -394,7 +413,7 @@ fn _set_vault(vault: ContractId, active: bool) {
 }
 
 #[storage(read, write)]
-fn _set_gov(gov: Account) {
+fn _set_gov(gov: Identity) {
     storage.gov.write(gov);
     log(SetGov { gov: gov });
 }
@@ -412,7 +431,7 @@ fn _get_id() -> AssetId {
 
 #[storage(read)]
 fn _verify_signature(
-    account: Account,
+    account: Identity,
     amount: u64,
     signature: B512
 ) {
@@ -426,12 +445,12 @@ fn _verify_signature(
 }
 
 #[storage(read)]
-fn _get_user_staked_balance(account: Account) -> u256 {
+fn _get_user_staked_balance(account: Identity) -> u256 {
     storage.user_staked_balance.get(account).try_read().unwrap_or(0).as_u256()
 }
 
 #[storage(read)]
-fn _update_rewards(account: Account) {
+fn _update_rewards(account: Identity) {
     let mut i = 0;
     let len = storage.yield_trackers.len();
 

@@ -1,5 +1,5 @@
 import { BigNumber } from "ethers"
-import { Fungible, VaultRouter, VaultLiquidityPool, VaultStorage, VaultUtils, Vault } from "../../types"
+import { Fungible, Vault } from "../../types"
 import { toContract } from "./account"
 import { toAsset } from "./asset"
 import { Provider } from "fuels"

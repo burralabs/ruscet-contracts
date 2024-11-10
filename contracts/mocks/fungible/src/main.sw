@@ -16,10 +16,6 @@ use std::{
     storage::storage_string::*,
     string::String,
 };
-use helpers::{
-    context::Account,
-    utils::account_to_identity,
-};
 use src20::SRC20;
 use src3::SRC3;
 use fungible_abi::*;
@@ -88,14 +84,14 @@ impl FungibleAsset for Contract {
        /_/_/    |____/|_| \_\\____|____/   
     */
     #[storage(read, write)]
-    fn mint(recipient: Account, amount: u64) {
+    fn mint(recipient: Identity, amount: u64) {
         let supply = storage.total_supply.read();
 
         storage.total_supply.write(supply + amount);
 
         // The `asset_id` constructed within the `mint_to` method is a sha256 hash of
         // the `contract_id` and the `SUB_ID` (the same as the `asset_id` constructed here).
-        mint_to(account_to_identity(recipient), SUB_ID, amount);
+        mint_to(recipient, SUB_ID, amount);
     }
 
     #[payable]

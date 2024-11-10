@@ -32,7 +32,6 @@ use std::{
 };
 use std::hash::*;
 use helpers::{
-    context::*, 
     zero::*, 
     utils::*,
 };
@@ -74,7 +73,7 @@ impl Hash for PriceMessage {
 storage {
     // gov is not restricted to an `Address` (EOA) or a `Contract` (external)
     // because this can be either a regular EOA (Address) or a Multisig (Contract)
-    gov: Account = ZERO_ACCOUNT,
+    gov: Identity = ZERO_ACCOUNT,
     is_initialized: bool = false,
 
     // asset -> pyth pricefeed id
@@ -94,7 +93,7 @@ storage {
 impl VaultPricefeed for Contract {
     #[storage(read, write)]
     fn initialize(
-        gov: Account,
+        gov: Identity,
         price_signer: Address
     ) {
         require(!storage.is_initialized.read(), Error::VaultPriceFeedAlreadyInitialized);
@@ -114,7 +113,7 @@ impl VaultPricefeed for Contract {
       /_/_/    /_/   \_\__,_|_| |_| |_|_|_| |_|                         
     */
     #[storage(read, write)]
-    fn set_gov(gov: Account) {
+    fn set_gov(gov: Identity) {
         _only_gov();
         storage.gov.write(gov);
         log(SetGov { gov });

@@ -2,13 +2,16 @@
 library;
 
 use helpers::{
-    context::Account,
     signed_256::Signed256,
 };
 use core_interfaces::vault::Position;
 
 pub struct SetGov {
-    pub gov: Account,
+    pub gov: Identity,
+}
+
+pub struct SetRusdContract {
+    pub rusd_contr: ContractId
 }
 
 pub struct SetPaused {
@@ -20,8 +23,8 @@ pub struct SetRouter {
 }
 
 pub struct SetApprovedRouter {
-    pub sender: Account,
-    pub router: Account,
+    pub account: Identity,
+    pub router: Identity,
     pub is_active: bool,
 }
 
@@ -81,13 +84,8 @@ pub struct SetMaxGlobalShortSize {
     pub max_global_short_size: u256,
 }
 
-pub struct WriteAuthorize {
-    pub account: Account,
-    pub is_authorized: bool,
-}
-
 pub struct SetLiquidator {
-    pub liquidator: Account,
+    pub liquidator: Identity,
     pub is_active: bool,
 }
 
@@ -101,7 +99,7 @@ pub struct SetPricefeedProvider {
 }
 
 pub struct BuyRUSD {
-    pub account: Account,
+    pub account: Identity,
     pub asset: AssetId,
     pub asset_amount: u64,
     pub rusd_amount: u256,
@@ -109,7 +107,7 @@ pub struct BuyRUSD {
 }
 
 pub struct SellRUSD {
-    pub account: Account,
+    pub account: Identity,
     pub asset: AssetId,
     pub asset_amount: u64,
     pub rusd_amount: u256,
@@ -128,7 +126,7 @@ pub struct DirectPoolDeposit {
 }
 
 pub struct Swap {
-    pub account: Account,
+    pub account: Identity,
     pub asset_in: AssetId,
     pub asset_out: AssetId,
     pub amount_in: u256,
@@ -139,13 +137,13 @@ pub struct Swap {
 
 pub struct WithdrawFees {
     pub asset: AssetId,
-    pub receiver: Account,
+    pub receiver: Identity,
     pub amount: u64
 }
 
 pub struct RegisterPositionByKey {
     pub position_key: b256,
-    pub account: Account,
+    pub account: Identity,
     pub collateral_asset: AssetId,
     pub index_asset: AssetId,
     pub is_long: bool
@@ -153,7 +151,7 @@ pub struct RegisterPositionByKey {
 
 pub struct IncreasePosition {
     pub key: b256,
-    pub account: Account,
+    pub account: Identity,
     pub collateral_asset: AssetId,
     pub index_asset: AssetId,
     pub collateral_delta: u256,
@@ -176,7 +174,7 @@ pub struct UpdatePosition {
 
 pub struct LiquidatePosition {
     pub key: b256,
-    pub account: Account,
+    pub account: Identity,
     pub collateral_asset: AssetId,
     pub index_asset: AssetId,
     pub is_long: bool,
@@ -189,7 +187,7 @@ pub struct LiquidatePosition {
 
 pub struct DecreasePosition {
     pub key: b256,
-    pub account: Account,
+    pub account: Identity,
     pub collateral_asset: AssetId,
     pub index_asset: AssetId,
     pub collateral_delta: u256,

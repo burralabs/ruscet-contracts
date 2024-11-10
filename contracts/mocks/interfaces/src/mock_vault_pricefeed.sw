@@ -1,13 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 library;
 
-use helpers::{
-    context::*,
-};
-
 abi MockVaultPricefeed {
     #[storage(read, write)]
-    fn initialize(gov: Account);
+    fn initialize(gov: Identity);
 
     /*
           ____     _       _           _       

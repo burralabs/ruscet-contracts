@@ -2,7 +2,6 @@
 library;
 
 use std::auth::msg_sender;
-use ::context::*;
 use ::zero::*;
 
 /*
@@ -17,17 +16,13 @@ use ::zero::*;
 //     ExpectedCallerToBeContract: (),
 // }
 
-pub fn get_sender() -> Account {
-    match msg_sender().unwrap() {
-        Identity::Address(addr) => Account::from(addr),
-        Identity::ContractId(contr) => Account::from(contr),
-    }
+pub fn get_sender() -> Identity {
+    msg_sender().unwrap()
 }
 
 pub fn get_address_or_revert() -> Address {
     get_sender_non_contract()
 }
-
 
 pub fn get_contract_or_revert() -> ContractId {
     get_sender_contract()
@@ -40,12 +35,6 @@ pub fn get_sender_non_contract() -> Address {
         _ => revert(0), // ZERO_ADDRESS
     };
 
-    // custom errors here fault-out with some strange behaviour
-    // @TODO: this is to be investigated
-    // require(
-    //     ret == ZERO_CONTRACT, __to_str_array("Error::ExpectedCallerToBeContract")
-    // );
-
     return addr;
 }
 
@@ -56,23 +45,5 @@ pub fn get_sender_contract() -> ContractId {
         _ => revert(0), // ZERO_CONTRACT
     };
 
-    // custom errors here fault-out with some strange behaviour
-    // @TODO: this is to be investigated
-    // require(
-    //     ret == ZERO_CONTRACT, __to_str_array("Error::ExpectedCallerToBeContract")
-    // );
-
     return contr;
-}
-
-pub fn check_nonzero(account: Account) -> bool {
-    account.value != ZERO
-}
-
-pub fn account_to_identity(account: Account) -> Identity {
-    if account.is_contract {
-        Identity::ContractId(ContractId::from(account.value))
-    } else {
-        Identity::Address(Address::from(account.value))
-    }
 }

@@ -2,7 +2,7 @@ import { expect, use } from "chai"
 import { AbstractContract, Provider, Signer, Wallet, WalletUnlocked } from "fuels"
 import { Fungible, TimeDistributor, Rusd, Utils, VaultPricefeed, YieldTracker, Vault } from "../../../types"
 import { deploy, getValStr, call } from "../../utils/utils"
-import { addrToAccount, contrToAccount, toAddress, toContract } from "../../utils/account"
+import { addrToIdentity, contrToIdentity, toAddress, toContract } from "../../utils/account"
 import { toPrice, toUsd } from "../../utils/units"
 import { getAssetId, toAsset } from "../../utils/asset"
 import { useChai } from "../../utils/chai"
@@ -61,18 +61,18 @@ describe("Vault.getFeeBasisPoints", function () {
 
         await call(rusd.functions.initialize(toContract(vault), toAddress(user0)))
 
-        await call(vault.functions.initialize(addrToAccount(deployer), toAsset(rusd), toContract(rusd)))
+        await call(vault.functions.initialize(addrToIdentity(deployer), toAsset(rusd), toContract(rusd)))
         await call(vault.functions.set_pricefeed_provider(toContract(vaultPricefeed)))
 
         await call(yieldTracker.functions.initialize(toContract(rusd)))
         await call(yieldTracker.functions.set_time_distributor(toContract(timeDistributor)))
         await call(timeDistributor.functions.initialize())
-        await call(timeDistributor.functions.set_distribution([contrToAccount(yieldTracker)], [1000], [toAsset(BNB)]))
+        await call(timeDistributor.functions.set_distribution([contrToIdentity(yieldTracker)], [1000], [toAsset(BNB)]))
 
-        await call(BNB.functions.mint(contrToAccount(timeDistributor), 5000))
-        await call(rusd.functions.set_yield_trackers([{ bits: contrToAccount(yieldTracker).value }]))
+        await call(BNB.functions.mint(contrToIdentity(timeDistributor), 5000))
+        await call(rusd.functions.set_yield_trackers([{ bits: contrToIdentity(yieldTracker).ContractId?.bits as string }]))
 
-        await call(vaultPricefeed.functions.initialize(addrToAccount(deployer), toAddress(deployer)))
+        await call(vaultPricefeed.functions.initialize(addrToIdentity(deployer), toAddress(deployer)))
         await call(vaultPricefeed.functions.set_asset_config(toAsset(BNB), BNB_PRICEFEED_ID, 9))
         await call(vaultPricefeed.functions.set_asset_config(toAsset(DAI), DAI_PRICEFEED_ID, 9))
         await call(vaultPricefeed.functions.set_asset_config(toAsset(BTC), BTC_PRICEFEED_ID, 9))
@@ -106,11 +106,11 @@ describe("Vault.getFeeBasisPoints", function () {
         await call(vault.functions.set_max_leverage(toAsset(BNB), BNB_MAX_LEVERAGE))
         expect(await getValStr(vault.functions.get_target_rusd_amount(toAsset(BNB)))).eq("0")
 
-        await call(BNB.functions.mint(addrToAccount(user0), 100 * 10))
+        await call(BNB.functions.mint(addrToIdentity(user0), 100 * 10))
         await call(
             vault
                 .connect(user0)
-                .functions.buy_rusd(toAsset(BNB), addrToAccount(deployer))
+                .functions.buy_rusd(toAsset(BNB), addrToIdentity(deployer))
                 .addContracts(attachedContracts)
                 .callParams({
                     forward: [100 * 10, getAssetId(BNB)],
@@ -148,11 +148,11 @@ describe("Vault.getFeeBasisPoints", function () {
         expect(await getValStr(vault.functions.get_fee_basis_points(toAsset(BNB), 25000 * 10, 100, 50, false))).eq("50")
         expect(await getValStr(vault.functions.get_fee_basis_points(toAsset(BNB), 100000 * 10, 100, 50, false))).eq("150")
 
-        await call(DAI.functions.mint(addrToAccount(user0), 20000 * 10))
+        await call(DAI.functions.mint(addrToIdentity(user0), 20000 * 10))
         await call(
             vault
                 .connect(user0)
-                .functions.buy_rusd(toAsset(DAI), addrToAccount(deployer))
+                .functions.buy_rusd(toAsset(DAI), addrToIdentity(deployer))
                 .addContracts(attachedContracts)
                 .callParams({
                     forward: [20000 * 10, getAssetId(DAI)],
@@ -183,11 +183,11 @@ describe("Vault.getFeeBasisPoints", function () {
         bnbConfig[2] = 5000 // asset_weight
         await call(vault.functions.set_asset_config(...bnbConfig))
 
-        await call(BNB.functions.mint(addrToAccount(user0), 200 * 10))
+        await call(BNB.functions.mint(addrToIdentity(user0), 200 * 10))
         await call(
             vault
                 .connect(user0)
-                .functions.buy_rusd(toAsset(BNB), addrToAccount(deployer))
+                .functions.buy_rusd(toAsset(BNB), addrToIdentity(deployer))
                 .addContracts(attachedContracts)
                 .callParams({
                     forward: [200 * 10, getAssetId(BNB)],

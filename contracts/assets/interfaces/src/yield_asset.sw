@@ -6,10 +6,6 @@ use std::{
     b512::B512
 };
 
-use helpers::{
-    context::Account,
-};
-
 abi YieldAsset {
     /*
           ____     _       _           _       
@@ -19,7 +15,7 @@ abi YieldAsset {
       /_/_/    /_/   \_\__,_|_| |_| |_|_|_| |_|                         
     */
     #[storage(read, write)]
-    fn set_gov(gov: Account);
+    fn set_gov(gov: Identity);
 
     /// handler responsible for updating the user's staked balance
     /// different from `gov` because this is a hot wallet solely for the purposes of signing staked balance updates
@@ -34,24 +30,24 @@ abi YieldAsset {
 
     #[storage(read, write)]
     fn set_admin(
-        account: Account,
+        account: Identity,
         active: bool,
     );
 
     #[storage(read, write)]
-    fn add_nonstaking_account(account: Account);
+    fn add_nonstaking_account(account: Identity);
 
     #[storage(read, write)]
-    fn remove_nonstaking_account(account: Account);
+    fn remove_nonstaking_account(account: Identity);
 
     #[storage(read)]
     fn recover_claim(
-        account: Account,
-        receiver: Account,
+        account: Identity,
+        receiver: Identity,
     );
 
     #[storage(read)]
-    fn claim(receiver: Account);
+    fn claim(receiver: Identity);
 
     /*
           ____ __     ___
@@ -75,7 +71,7 @@ abi YieldAsset {
     */
     #[storage(read, write)]
     fn set_user_staked_balance(
-        account: Account,
+        account: Identity,
         amount: u64,
         signature: B512
     );

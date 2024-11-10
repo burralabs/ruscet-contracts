@@ -5,19 +5,16 @@ use std::{
     storage::storage_string::*,
     string::String
 };
-use helpers::{
-    context::Account,
-};
 
 abi MockPricefeed {
     #[storage(read, write)]
     fn initialize(
-        gov: Account, 
+        gov: Identity, 
         description: String
     );
     
     #[storage(read)]
-    fn gov() -> Account;
+    fn gov() -> Identity;
 
     #[storage(read)]
     fn latest_answer() -> u256;

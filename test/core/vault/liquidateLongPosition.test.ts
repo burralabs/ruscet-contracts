@@ -2,7 +2,7 @@ import { expect, use } from "chai"
 import { AbstractContract, Provider, Signer, Wallet, WalletUnlocked } from "fuels"
 import { Fungible, Rlp, TimeDistributor, Rusd, Utils, VaultPricefeed, YieldTracker, Vault } from "../../../types"
 import { deploy, getBalance, getValue, getValStr, formatObj, call } from "../../utils/utils"
-import { addrToAccount, contrToAccount, toAddress, toContract } from "../../utils/account"
+import { addrToIdentity, contrToIdentity, toAddress, toContract } from "../../utils/account"
 import { expandDecimals, toPrice, toUsd } from "../../utils/units"
 import { getAssetId, toAsset } from "../../utils/asset"
 import { useChai } from "../../utils/chai"
@@ -64,18 +64,18 @@ describe("Vault.liquidateLongPosition", () => {
 
         await call(rusd.functions.initialize(toContract(vault), toAddress(user0)))
 
-        await call(vault.functions.initialize(addrToAccount(deployer), toAsset(rusd), toContract(rusd)))
+        await call(vault.functions.initialize(addrToIdentity(deployer), toAsset(rusd), toContract(rusd)))
         await call(vault.functions.set_pricefeed_provider(toContract(vaultPricefeed)))
 
         await call(yieldTracker.functions.initialize(toContract(rusd)))
         await call(yieldTracker.functions.set_time_distributor(toContract(timeDistributor)))
         await call(timeDistributor.functions.initialize())
-        await call(timeDistributor.functions.set_distribution([contrToAccount(yieldTracker)], [1000], [toAsset(BNB)]))
+        await call(timeDistributor.functions.set_distribution([contrToIdentity(yieldTracker)], [1000], [toAsset(BNB)]))
 
-        await call(BNB.functions.mint(contrToAccount(timeDistributor), 5000))
-        await call(rusd.functions.set_yield_trackers([{ bits: contrToAccount(yieldTracker).value }]))
+        await call(BNB.functions.mint(contrToIdentity(timeDistributor), 5000))
+        await call(rusd.functions.set_yield_trackers([{ bits: contrToIdentity(yieldTracker).ContractId?.bits as string }]))
 
-        await call(vaultPricefeed.functions.initialize(addrToAccount(deployer), toAddress(deployer)))
+        await call(vaultPricefeed.functions.initialize(addrToIdentity(deployer), toAddress(deployer)))
         await call(vaultPricefeed.functions.set_asset_config(toAsset(BNB), BNB_PRICEFEED_ID, 9))
         await call(vaultPricefeed.functions.set_asset_config(toAsset(DAI), DAI_PRICEFEED_ID, 9))
         await call(vaultPricefeed.functions.set_asset_config(toAsset(BTC), BTC_PRICEFEED_ID, 9))
@@ -102,23 +102,23 @@ describe("Vault.liquidateLongPosition", () => {
         await call(getUpdatePriceDataCall(toAsset(BTC), toPrice(41000), vaultPricefeed, priceUpdateSigner))
         await call(getUpdatePriceDataCall(toAsset(BTC), toPrice(40000), vaultPricefeed, priceUpdateSigner))
 
-        await call(vault.functions.set_liquidator(addrToAccount(user0), true))
+        await call(vault.functions.set_liquidator(addrToIdentity(user0), true))
         await expect(
             call(
                 vault
                     .connect(user0)
-                    .functions.liquidate_position(addrToAccount(user0), toAsset(BTC), toAsset(BTC), true, addrToAccount(user2))
+                    .functions.liquidate_position(addrToIdentity(user0), toAsset(BTC), toAsset(BTC), true, addrToIdentity(user2))
                     .addContracts(attachedContracts),
             ),
         ).to.be.revertedWith("VaultEmptyPosition")
 
-        await call(BTC.functions.mint(addrToAccount(user0), expandDecimals(1)))
-        await call(BTC.functions.mint(addrToAccount(user1), expandDecimals(1)))
+        await call(BTC.functions.mint(addrToIdentity(user0), expandDecimals(1)))
+        await call(BTC.functions.mint(addrToIdentity(user1), expandDecimals(1)))
 
         await call(
             vault
                 .as(user1)
-                .functions.buy_rusd(toAsset(BTC), addrToAccount(user1))
+                .functions.buy_rusd(toAsset(BTC), addrToIdentity(user1))
                 .addContracts(attachedContracts)
                 .callParams({
                     // 0.0025 BTC => 100 USD
@@ -126,12 +126,12 @@ describe("Vault.liquidateLongPosition", () => {
                 }),
         )
 
-        await call(BTC.functions.mint(addrToAccount(user0), expandDecimals(1)))
+        await call(BTC.functions.mint(addrToIdentity(user0), expandDecimals(1)))
 
         await call(
             vault
                 .connect(user0)
-                .functions.increase_position(addrToAccount(user0), toAsset(BTC), toAsset(BTC), toUsd(90), true)
+                .functions.increase_position(addrToIdentity(user0), toAsset(BTC), toAsset(BTC), toUsd(90), true)
                 .addContracts(attachedContracts)
                 .callParams({
                     // 0.00025 BTC => 10 USD
@@ -139,7 +139,7 @@ describe("Vault.liquidateLongPosition", () => {
                 }),
         )
 
-        let position = formatObj(await getPosition(addrToAccount(user0), toAsset(BTC), toAsset(BTC), true, vault))
+        let position = formatObj(await getPosition(addrToIdentity(user0), toAsset(BTC), toAsset(BTC), true, vault))
         expect(position.size).eq(toUsd(90))
         expect(position.collateral).eq(toUsd(9.9))
         expect(position.average_price).eq("40040000000000000000000000000000000")
@@ -149,7 +149,7 @@ describe("Vault.liquidateLongPosition", () => {
         expect(
             formatObj(
                 await getValue(
-                    vault.functions.validate_liquidation(addrToAccount(user0), toAsset(BTC), toAsset(BTC), true, false),
+                    vault.functions.validate_liquidation(addrToIdentity(user0), toAsset(BTC), toAsset(BTC), true, false),
                 ),
             )[0],
         ).eq("0")
@@ -159,56 +159,56 @@ describe("Vault.liquidateLongPosition", () => {
         await call(getUpdatePriceDataCall(toAsset(BTC), toPrice(43500), vaultPricefeed, priceUpdateSigner))
 
         let delta = formatObj(
-            await getValue(vault.functions.get_position_delta(addrToAccount(user0), toAsset(BTC), toAsset(BTC), true)),
+            await getValue(vault.functions.get_position_delta(addrToIdentity(user0), toAsset(BTC), toAsset(BTC), true)),
         )
         expect(delta[0]).eq(true)
         expect(delta[1]).eq("7679445554445554445554445554445")
         expect(
             formatObj(
                 await getValue(
-                    vault.functions.validate_liquidation(addrToAccount(user0), toAsset(BTC), toAsset(BTC), true, false),
+                    vault.functions.validate_liquidation(addrToIdentity(user0), toAsset(BTC), toAsset(BTC), true, false),
                 ),
             )[0],
         ).eq("0")
 
         await call(getUpdatePriceDataCall(toAsset(BTC), toPrice(39000), vaultPricefeed, priceUpdateSigner))
         delta = formatObj(
-            await getValue(vault.functions.get_position_delta(addrToAccount(user0), toAsset(BTC), toAsset(BTC), true)),
+            await getValue(vault.functions.get_position_delta(addrToIdentity(user0), toAsset(BTC), toAsset(BTC), true)),
         )
         expect(delta[0]).eq(false)
         expect(delta[1]).eq("2425324675324675324675324675324")
         expect(
             formatObj(
                 await getValue(
-                    vault.functions.validate_liquidation(addrToAccount(user0), toAsset(BTC), toAsset(BTC), true, false),
+                    vault.functions.validate_liquidation(addrToIdentity(user0), toAsset(BTC), toAsset(BTC), true, false),
                 ),
             )[0],
         ).eq("0")
 
-        await call(vault.functions.set_liquidator(addrToAccount(deployer), true))
+        await call(vault.functions.set_liquidator(addrToIdentity(deployer), true))
         await expect(
             call(
                 vault.functions
-                    .liquidate_position(addrToAccount(user0), toAsset(BTC), toAsset(BTC), true, addrToAccount(user2))
+                    .liquidate_position(addrToIdentity(user0), toAsset(BTC), toAsset(BTC), true, addrToIdentity(user2))
                     .addContracts(attachedContracts),
             ),
         ).to.be.revertedWith("VaultCannotBeLiquidated")
 
         await call(getUpdatePriceDataCall(toAsset(BTC), toPrice(37000), vaultPricefeed, priceUpdateSigner))
         delta = formatObj(
-            await getValue(vault.functions.get_position_delta(addrToAccount(user0), toAsset(BTC), toAsset(BTC), true)),
+            await getValue(vault.functions.get_position_delta(addrToIdentity(user0), toAsset(BTC), toAsset(BTC), true)),
         )
         expect(delta[0]).eq(false)
         expect(delta[1]).eq("6916333666333666333666333666333")
         expect(
             formatObj(
                 await getValue(
-                    vault.functions.validate_liquidation(addrToAccount(user0), toAsset(BTC), toAsset(BTC), true, false),
+                    vault.functions.validate_liquidation(addrToIdentity(user0), toAsset(BTC), toAsset(BTC), true, false),
                 ),
             )[0],
         ).eq("1")
 
-        position = formatObj(await getPosition(addrToAccount(user0), toAsset(BTC), toAsset(BTC), true, vault))
+        position = formatObj(await getPosition(addrToIdentity(user0), toAsset(BTC), toAsset(BTC), true, vault))
         expect(position.size).eq(toUsd(90))
         expect(position.collateral).eq(toUsd(9.9))
         expect(position.average_price).eq("40040000000000000000000000000000000")
@@ -225,23 +225,23 @@ describe("Vault.liquidateLongPosition", () => {
             call(
                 vault
                     .connect(user1)
-                    .functions.liquidate_position(addrToAccount(user0), toAsset(BTC), toAsset(BTC), true, addrToAccount(user2))
+                    .functions.liquidate_position(addrToIdentity(user0), toAsset(BTC), toAsset(BTC), true, addrToIdentity(user2))
                     .addContracts(attachedContracts),
             ),
         ).to.be.revertedWith("VaultInvalidLiquidator")
 
-        expect(await getValue(vault.functions.is_liquidator(addrToAccount(user1)))).eq(false)
-        await call(vault.functions.set_liquidator(addrToAccount(user1), true))
-        expect(await getValue(vault.functions.is_liquidator(addrToAccount(user1)))).eq(true)
+        expect(await getValue(vault.functions.is_liquidator(addrToIdentity(user1)))).eq(false)
+        await call(vault.functions.set_liquidator(addrToIdentity(user1), true))
+        expect(await getValue(vault.functions.is_liquidator(addrToIdentity(user1)))).eq(true)
 
         await call(
             vault
                 .connect(user1)
-                .functions.liquidate_position(addrToAccount(user0), toAsset(BTC), toAsset(BTC), true, addrToAccount(user2))
+                .functions.liquidate_position(addrToIdentity(user0), toAsset(BTC), toAsset(BTC), true, addrToIdentity(user2))
                 .addContracts(attachedContracts),
         )
 
-        position = formatObj(await getPosition(addrToAccount(user0), toAsset(BTC), toAsset(BTC), true, vault))
+        position = formatObj(await getPosition(addrToIdentity(user0), toAsset(BTC), toAsset(BTC), true, vault))
         expect(position.size).eq("0")
         expect(position.collateral).eq("0")
         expect(position.average_price).eq("0")
@@ -263,13 +263,13 @@ describe("Vault.liquidateLongPosition", () => {
         const feeReserve = BigNumber.from(await getValStr(vault.functions.get_fee_reserves(toAsset(BTC))))
         expect(poolAmount.add(feeReserve).sub(balance).toString()).eq("0")
 
-        await call(vault.functions.withdraw_fees(toAsset(BTC), addrToAccount(user0)).addContracts(attachedContracts))
+        await call(vault.functions.withdraw_fees(toAsset(BTC), addrToIdentity(user0)).addContracts(attachedContracts))
 
-        // await call(BTC.functions.mint(contrToAccount(vault), 1000))
+        // await call(BTC.functions.mint(contrToIdentity(vault), 1000))
         await call(
             vault
                 .as(user0)
-                .functions.buy_rusd(toAsset(BTC), addrToAccount(user1))
+                .functions.buy_rusd(toAsset(BTC), addrToIdentity(user1))
                 .addContracts(attachedContracts)
                 .callParams({
                     forward: [1000, getAssetId(BTC)],
@@ -286,21 +286,21 @@ describe("Vault.liquidateLongPosition", () => {
 
         await call(getUpdatePriceDataCall(toAsset(BTC), toPrice(40333), vaultPricefeed, priceUpdateSigner))
 
-        await call(vault.functions.set_liquidator(addrToAccount(user0), true))
+        await call(vault.functions.set_liquidator(addrToIdentity(user0), true))
         await expect(
             call(
                 vault
                     .connect(user0)
-                    .functions.liquidate_position(addrToAccount(user0), toAsset(BTC), toAsset(BTC), true, addrToAccount(user2))
+                    .functions.liquidate_position(addrToIdentity(user0), toAsset(BTC), toAsset(BTC), true, addrToIdentity(user2))
                     .addContracts(attachedContracts),
             ),
         ).to.be.revertedWith("VaultEmptyPosition")
 
-        await call(BTC.functions.mint(addrToAccount(user1), expandDecimals(1)))
+        await call(BTC.functions.mint(addrToIdentity(user1), expandDecimals(1)))
         await call(
             vault
                 .as(user1)
-                .functions.buy_rusd(toAsset(BTC), addrToAccount(user1))
+                .functions.buy_rusd(toAsset(BTC), addrToIdentity(user1))
                 .addContracts(attachedContracts)
                 .callParams({
                     // 0.05 BTC => 2000 USD
@@ -308,12 +308,12 @@ describe("Vault.liquidateLongPosition", () => {
                 }),
         )
 
-        await call(BTC.functions.mint(addrToAccount(user1), expandDecimals(1)))
-        await call(BTC.functions.mint(addrToAccount(user0), 250000 * 10))
+        await call(BTC.functions.mint(addrToIdentity(user1), expandDecimals(1)))
+        await call(BTC.functions.mint(addrToIdentity(user0), 250000 * 10))
         await call(
             vault
                 .connect(user0)
-                .functions.increase_position(addrToAccount(user0), toAsset(BTC), toAsset(BTC), toUsd(1000), true)
+                .functions.increase_position(addrToIdentity(user0), toAsset(BTC), toAsset(BTC), toUsd(1000), true)
                 .callParams({
                     // 0.0025 BTC => 100 USD
                     forward: [250000 * 10, getAssetId(BTC)],
@@ -321,7 +321,7 @@ describe("Vault.liquidateLongPosition", () => {
                 .addContracts(attachedContracts),
         )
 
-        let position = formatObj(await getPosition(addrToAccount(user0), toAsset(BTC), toAsset(BTC), true, vault))
+        let position = formatObj(await getPosition(addrToIdentity(user0), toAsset(BTC), toAsset(BTC), true, vault))
         expect(position.size).eq(toUsd(1000))
         expect(position.collateral).eq("99731667500000000000000000000000")
         expect(position.average_price).eq("40373333000000000000000000000000000")
@@ -331,7 +331,7 @@ describe("Vault.liquidateLongPosition", () => {
         expect(
             formatObj(
                 await getValue(
-                    vault.functions.validate_liquidation(addrToAccount(user0), toAsset(BTC), toAsset(BTC), true, false),
+                    vault.functions.validate_liquidation(addrToIdentity(user0), toAsset(BTC), toAsset(BTC), true, false),
                 ),
             )[0],
         ).eq("0")
@@ -339,14 +339,14 @@ describe("Vault.liquidateLongPosition", () => {
         await call(getUpdatePriceDataCall(toAsset(BTC), toPrice(43500), vaultPricefeed, priceUpdateSigner))
 
         let delta = formatObj(
-            await getValue(vault.functions.get_position_delta(addrToAccount(user0), toAsset(BTC), toAsset(BTC), true)),
+            await getValue(vault.functions.get_position_delta(addrToIdentity(user0), toAsset(BTC), toAsset(BTC), true)),
         )
         expect(delta[0]).eq(true)
         expect(delta[1]).eq("76366422361017357670222569932484")
         expect(
             formatObj(
                 await getValue(
-                    vault.functions.validate_liquidation(addrToAccount(user0), toAsset(BTC), toAsset(BTC), true, false),
+                    vault.functions.validate_liquidation(addrToIdentity(user0), toAsset(BTC), toAsset(BTC), true, false),
                 ),
             )[0],
         ).eq("0")
@@ -354,7 +354,7 @@ describe("Vault.liquidateLongPosition", () => {
         await call(getUpdatePriceDataCall(toAsset(BTC), toPrice(42000), vaultPricefeed, priceUpdateSigner))
 
         delta = formatObj(
-            await getValue(vault.functions.get_position_delta(addrToAccount(user0), toAsset(BTC), toAsset(BTC), true)),
+            await getValue(vault.functions.get_position_delta(addrToIdentity(user0), toAsset(BTC), toAsset(BTC), true)),
         )
         expect(delta[0]).eq(true)
         expect(delta[1]).eq("39250338831327103957456274417571")
@@ -362,16 +362,16 @@ describe("Vault.liquidateLongPosition", () => {
         expect(
             formatObj(
                 await getValue(
-                    vault.functions.validate_liquidation(addrToAccount(user0), toAsset(BTC), toAsset(BTC), true, false),
+                    vault.functions.validate_liquidation(addrToIdentity(user0), toAsset(BTC), toAsset(BTC), true, false),
                 ),
             )[0],
         ).eq("0")
 
-        await call(vault.functions.set_liquidator(addrToAccount(deployer), true))
+        await call(vault.functions.set_liquidator(addrToIdentity(deployer), true))
         await expect(
             call(
                 vault.functions
-                    .liquidate_position(addrToAccount(user0), toAsset(BTC), toAsset(BTC), true, addrToAccount(user2))
+                    .liquidate_position(addrToIdentity(user0), toAsset(BTC), toAsset(BTC), true, addrToIdentity(user2))
                     .addContracts(attachedContracts),
             ),
         ).to.be.revertedWith("VaultCannotBeLiquidated")
@@ -379,19 +379,19 @@ describe("Vault.liquidateLongPosition", () => {
         await call(getUpdatePriceDataCall(toAsset(BTC), toPrice(38000), vaultPricefeed, priceUpdateSigner))
 
         delta = formatObj(
-            await getValue(vault.functions.get_position_delta(addrToAccount(user0), toAsset(BTC), toAsset(BTC), true)),
+            await getValue(vault.functions.get_position_delta(addrToIdentity(user0), toAsset(BTC), toAsset(BTC), true)),
         )
         expect(delta[0]).eq(false)
         expect(delta[1]).eq("59725883914513572609920513622197")
         expect(
             formatObj(
                 await getValue(
-                    vault.functions.validate_liquidation(addrToAccount(user0), toAsset(BTC), toAsset(BTC), true, false),
+                    vault.functions.validate_liquidation(addrToIdentity(user0), toAsset(BTC), toAsset(BTC), true, false),
                 ),
             )[0],
         ).eq("0")
 
-        position = formatObj(await getPosition(addrToAccount(user0), toAsset(BTC), toAsset(BTC), true, vault))
+        position = formatObj(await getPosition(addrToIdentity(user0), toAsset(BTC), toAsset(BTC), true, vault))
         expect(position.size).eq(toUsd(1000))
         expect(position.collateral).eq("99731667500000000000000000000000")
         expect(position.average_price).eq("40373333000000000000000000000000000")
@@ -410,11 +410,11 @@ describe("Vault.liquidateLongPosition", () => {
         await call(getUpdatePriceDataCall(toAsset(BTC), toPrice(36000), vaultPricefeed, priceUpdateSigner))
         await call(
             vault.functions
-                .liquidate_position(addrToAccount(user0), toAsset(BTC), toAsset(BTC), true, addrToAccount(user2))
+                .liquidate_position(addrToIdentity(user0), toAsset(BTC), toAsset(BTC), true, addrToIdentity(user2))
                 .addContracts(attachedContracts),
         )
 
-        position = formatObj(await getPosition(addrToAccount(user0), toAsset(BTC), toAsset(BTC), true, vault))
+        position = formatObj(await getPosition(addrToIdentity(user0), toAsset(BTC), toAsset(BTC), true, vault))
         expect(position.size).eq("0")
         expect(position.collateral).eq("0")
         expect(position.average_price).eq("0")
@@ -437,13 +437,13 @@ describe("Vault.liquidateLongPosition", () => {
         const feeReserve = BigNumber.from(await getValStr(vault.functions.get_fee_reserves(toAsset(BTC))))
         expect(poolAmount.add(feeReserve).sub(balance).toString()).eq("0")
 
-        await call(vault.functions.withdraw_fees(toAsset(BTC), addrToAccount(user0)).addContracts(attachedContracts))
+        await call(vault.functions.withdraw_fees(toAsset(BTC), addrToIdentity(user0)).addContracts(attachedContracts))
 
-        // await call(BTC.functions.mint(contrToAccount(vault), 1000))
+        // await call(BTC.functions.mint(contrToIdentity(vault), 1000))
         await call(
             vault
                 .as(user0)
-                .functions.buy_rusd(toAsset(BTC), addrToAccount(user1))
+                .functions.buy_rusd(toAsset(BTC), addrToIdentity(user1))
                 .addContracts(attachedContracts)
                 .callParams({
                     forward: [1000, getAssetId(BTC)],

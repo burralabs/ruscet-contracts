@@ -4,14 +4,11 @@ library;
 use pyth_interface::data_structures::price::PriceFeedId;
 use std::bytes::Bytes;
 use std::b512::B512;
-use helpers::{
-    context::*,
-};
 
 abi VaultPricefeed {
     #[storage(read, write)]
     fn initialize(
-        gov: Account,
+        gov: Identity,
         price_signer: Address
     );
 
@@ -23,7 +20,7 @@ abi VaultPricefeed {
       /_/_/    /_/   \_\__,_|_| |_| |_|_|_| |_|                         
     */
     #[storage(read, write)]
-    fn set_gov(gov: Account);
+    fn set_gov(gov: Identity);
 
     #[storage(read, write)]
     fn set_price_signer(price_signer: Address);

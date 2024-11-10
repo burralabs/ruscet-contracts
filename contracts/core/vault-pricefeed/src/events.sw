@@ -3,12 +3,9 @@ library;
 
 
 use pyth_interface::data_structures::price::{Price, PriceFeedId};
-use helpers::{
-    context::Account,
-};
 
 pub struct SetGov {
-    pub gov: Account
+    pub gov: Identity
 }
 
 pub struct SetPythPricefeed {

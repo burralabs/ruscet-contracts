@@ -17,15 +17,6 @@ impl From<u256> for Signed256 {
             is_neg: false
         }
     }
-
-    // fn into(self) -> u256 {
-    //     if !self.is_neg {
-    //         self.value
-    //     } else {
-    //         require(false, Error::Signed256Err: cannot fitto u256"));
-    //         revert(0);
-    //     }
-    // }
 }
 
 enum Error {

@@ -24,7 +24,6 @@ use std::{
 use std::hash::*;
 use helpers::{
     time::get_unix_timestamp,
-    context::*, 
     utils::*, 
     transfer::*,
     zero::*
@@ -36,13 +35,13 @@ use events::*;
 const DISTRIBUTION_INTERVAL: u64 = 3600; // 1 hour
 
 storage {
-    gov: Account = ZERO_ACCOUNT,
-    admin: Account = ZERO_ACCOUNT,
+    gov: Identity = ZERO_ACCOUNT,
+    admin: Identity = ZERO_ACCOUNT,
     is_initialized: bool = false,
     
-    reward_assets: StorageMap<Account, AssetId> = StorageMap {},
-    assets_per_interval: StorageMap<Account, u64> = StorageMap {},
-    last_distribution_time: StorageMap<Account, u64> = StorageMap {}
+    reward_assets: StorageMap<Identity, AssetId> = StorageMap {},
+    assets_per_interval: StorageMap<Identity, u64> = StorageMap {},
+    last_distribution_time: StorageMap<Identity, u64> = StorageMap {}
 }
 
 impl TimeDistributor for Contract {
@@ -67,14 +66,14 @@ impl TimeDistributor for Contract {
       /_/_/    /_/   \_\__,_|_| |_| |_|_|_| |_|                         
     */
     #[storage(read, write)]
-    fn set_gov(new_gov: Account) {
+    fn set_gov(new_gov: Identity) {
         _only_gov();
         storage.gov.write(new_gov);
     }
 
     #[storage(read, write)]
     fn set_assets_per_interval(
-        receiver: Account,
+        receiver: Identity,
         amount: u64
     ) {
         _only_admin();
@@ -94,14 +93,14 @@ impl TimeDistributor for Contract {
     }
 
     #[storage(read, write)]
-    fn update_last_distribution_time(receiver: Account) {
+    fn update_last_distribution_time(receiver: Identity) {
         _only_admin();
         _update_last_distribution_time(receiver);
     }
 
     #[storage(read, write)]
     fn set_distribution(
-        receivers: Vec<Account>,
+        receivers: Vec<Identity>,
         amounts: Vec<u64>,
         reward_assets: Vec<AssetId>
     ) {
@@ -150,22 +149,22 @@ impl TimeDistributor for Contract {
       /_/_/       \_/  |_|\___| \_/\_/
     */
     #[storage(read)]
-    fn get_intervals(receiver: Account) -> u64 {
+    fn get_intervals(receiver: Identity) -> u64 {
         _get_intervals(receiver)
     }
 
     #[storage(read)]
-    fn get_assets_per_interval(account: Account) -> u64 {
+    fn get_assets_per_interval(account: Identity) -> u64 {
         storage.assets_per_interval.get(account).try_read().unwrap_or(0)
     }
 
     #[storage(read)]
-    fn get_reward_asset(receiver: Account) -> AssetId {
+    fn get_reward_asset(receiver: Identity) -> AssetId {
         storage.reward_assets.get(receiver).try_read().unwrap_or(ZERO_ASSET)
     }
 
     #[storage(read)]
-    fn get_distribution_amount(receiver: Account) -> u64 {
+    fn get_distribution_amount(receiver: Identity) -> u64 {
         _get_distribution_amount(receiver)
     }
 
@@ -218,13 +217,13 @@ fn _only_admin() {
 }
 
 #[storage(read)]
-fn _get_intervals(account: Account) -> u64 {
+fn _get_intervals(account: Identity) -> u64 {
     let time_diff = get_unix_timestamp() - storage.last_distribution_time.get(account).try_read().unwrap_or(0);
     time_diff / DISTRIBUTION_INTERVAL
 }
 
 #[storage(read, write)]
-fn _update_last_distribution_time(receiver: Account) {
+fn _update_last_distribution_time(receiver: Identity) {
     storage.last_distribution_time.insert(
         receiver, 
         get_unix_timestamp() / DISTRIBUTION_INTERVAL * DISTRIBUTION_INTERVAL
@@ -232,7 +231,7 @@ fn _update_last_distribution_time(receiver: Account) {
 }
 
 #[storage(read)]
-fn _get_distribution_amount(account: Account) -> u64 {
+fn _get_distribution_amount(account: Identity) -> u64 {
     let assets_per_interval = storage.assets_per_interval
         .get(account).try_read().unwrap_or(0);
     if assets_per_interval == 0 {

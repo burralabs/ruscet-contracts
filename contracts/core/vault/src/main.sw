@@ -30,7 +30,6 @@ use std::{
 };
 use std::hash::*;
 use helpers::{
-    context::*, 
     signed_256::*,
     transfer::transfer_assets,
     time::get_unix_timestamp,
@@ -62,7 +61,7 @@ use errors::*;
 storage {
     // gov is not restricted to an `Address` (EOA) or a `Contract` (external)
     // because this can be either a regular EOA (Address) or a Multisig (Contract)
-    gov: Account = ZERO_ACCOUNT,
+    gov: Identity = ZERO_ACCOUNT,
     is_initialized: bool = false,
     lock: bool = false,
     
@@ -98,8 +97,8 @@ storage {
     total_asset_weights: u64 = 0,
 
     // Misc
-    approved_routers: StorageMap<Account, StorageMap<Account, bool>> = StorageMap {},
-    is_liquidator: StorageMap<Account, bool> = StorageMap {},
+    approved_routers: StorageMap<Identity, StorageMap<Identity, bool>> = StorageMap {},
+    is_liquidator: StorageMap<Identity, bool> = StorageMap {},
     max_leverage: StorageMap<AssetId, u256> = StorageMap {},
 
     whitelisted_asset_count: u64 = 0,
@@ -186,7 +185,7 @@ impl Pausable for Contract {
 impl Vault for Contract {
     #[storage(read, write)]
     fn initialize(
-        gov: Account,
+        gov: Identity,
         rusd: AssetId,
         rusd_contr: ContractId,
     ) {
@@ -201,6 +200,9 @@ impl Vault for Contract {
 
         storage.rusd.write(rusd);
         storage.rusd_contr.write(rusd_contr);
+
+        log(SetGov { gov });
+        log(SetRusdContract { rusd_contr });
     }
 
     /*
@@ -211,14 +213,15 @@ impl Vault for Contract {
       /_/_/    /_/   \_\__,_|_| |_| |_|_|_| |_|                         
     */
     #[storage(write)]
-    fn set_gov(gov: Account) {
+    fn set_gov(gov: Identity) {
         _only_gov();
         storage.gov.write(gov);
+        log(SetGov { gov })
     }
 
     #[storage(write)]
     fn set_liquidator(
-        liquidator: Account, 
+        liquidator: Identity, 
         is_active: bool
     ) {
         _only_gov();
@@ -414,15 +417,27 @@ impl Vault for Contract {
     }
 
      #[storage(write)]
-    fn set_max_global_short_size(asset: AssetId, max_global_short_size: u256) {
+    fn set_max_global_short_size(
+        asset: AssetId,
+        max_global_short_size: u256
+    ) {
         _only_gov();
         storage.max_global_short_sizes.insert(asset, max_global_short_size);
         log(SetMaxGlobalShortSize { asset, max_global_short_size });
     }
 
     #[storage(write)]
-    fn set_approved_router(router: Account, is_active: bool) {
-        storage.approved_routers.get(get_sender()).insert(router, is_active);
+    fn set_approved_router(
+        router: Identity,
+        is_active: bool
+    ) {
+        let account = get_sender();
+        storage.approved_routers.get(account).insert(router, is_active);
+        log(SetApprovedRouter { 
+            account,
+            router,
+            is_active
+        });
     }
 
     #[storage(write)]
@@ -440,7 +455,7 @@ impl Vault for Contract {
     #[storage(read, write)]
     fn withdraw_fees(
         asset: AssetId,
-        receiver: Account
+        receiver: Identity
     ) -> u64 {
         _only_gov();
 
@@ -453,7 +468,7 @@ impl Vault for Contract {
 
         transfer_assets(
             asset,
-            Account::from(new_vault),
+            Identity::ContractId(new_vault),
             amount
         );
 
@@ -467,42 +482,8 @@ impl Vault for Contract {
        / / /     \ V / | |  __/\ V  V /
       /_/_/       \_/  |_|\___| \_/\_/
     */
-    #[storage(read)]
-    fn get_position(
-        account: Account,
-        collateral_asset: AssetId,
-        index_asset: AssetId,
-        is_long: bool,
-    ) -> (
-        u256, u256, u256,
-        u256, u256, Signed256,
-        bool, u64,
-        Position
-    ) {
-        let position_key = _get_position_key(
-            account, 
-            collateral_asset, 
-            index_asset, 
-            is_long
-        );
-
-        let position = _get_position_by_key(position_key);
-        (
-            position.size, // 0
-            position.collateral, // 1
-            position.average_price, // 2
-            position.entry_funding_rate, // 3
-            position.reserve_amount, // 4
-            position.realized_pnl, // 5
-            // position.realized_pnl >= 0, // 6
-            !position.realized_pnl.is_neg, // 6
-            position.last_increased_time, // 7
-            position
-        )
-    }
-
     fn get_position_key(
-        account: Account,
+        account: Identity,
         collateral_asset: AssetId,
         index_asset: AssetId,
         is_long: bool,
@@ -517,7 +498,7 @@ impl Vault for Contract {
 
     #[storage(read)]
     fn get_position_delta(
-        account: Account,
+        account: Identity,
         collateral_asset: AssetId,
         index_asset: AssetId,
         is_long: bool,
@@ -580,7 +561,7 @@ impl Vault for Contract {
 
     #[storage(read)]
     fn get_position_fee(
-        account: Account,
+        account: Identity,
         collateral_asset: AssetId,
         index_asset: AssetId,
         is_long: bool,
@@ -737,7 +718,7 @@ impl Vault for Contract {
 
     #[storage(read)]
     fn get_position_leverage(
-        account: Account,
+        account: Identity,
         collateral_asset: AssetId,
         index_asset: AssetId,
         is_long: bool,
@@ -847,13 +828,13 @@ impl Vault for Contract {
     }
 
     #[storage(read)]
-    fn is_liquidator(account: Account) -> bool {
+    fn is_liquidator(account: Identity) -> bool {
         storage.is_liquidator.get(account).try_read().unwrap_or(false)
     }
 
     #[storage(read)]
     fn validate_liquidation(
-        account: Account,
+        account: Identity,
         collateral_asset: AssetId,
         index_asset: AssetId,
         is_long: bool,
@@ -909,7 +890,7 @@ impl Vault for Contract {
 
     #[payable]
     #[storage(read, write)]
-    fn buy_rusd(asset: AssetId, receiver: Account) -> u256 {
+    fn buy_rusd(asset: AssetId, receiver: Identity) -> u256 {
         sl_require_not_paused();
         
         begin_non_reentrant(storage.lock);
@@ -922,7 +903,7 @@ impl Vault for Contract {
 
     #[payable]
     #[storage(read, write)]
-    fn sell_rusd(asset: AssetId, receiver: Account) -> u256 {
+    fn sell_rusd(asset: AssetId, receiver: Identity) -> u256 {
         sl_require_not_paused();
         
         begin_non_reentrant(storage.lock);
@@ -938,7 +919,7 @@ impl Vault for Contract {
     fn swap(
         asset_in: AssetId,
         asset_out: AssetId,
-        receiver: Account
+        receiver: Identity
     ) -> u64 {
         sl_require_not_paused();
         
@@ -953,7 +934,7 @@ impl Vault for Contract {
     #[payable]
     #[storage(read, write)]
     fn increase_position(
-        account: Account,
+        account: Identity,
         collateral_asset: AssetId,
         index_asset: AssetId,
         size_delta: u256,
@@ -970,13 +951,13 @@ impl Vault for Contract {
 
     #[storage(read, write)]
     fn decrease_position(
-        account: Account,
+        account: Identity,
         collateral_asset: AssetId,
         index_asset: AssetId,
         collateral_delta: u256,
         size_delta: u256,
         is_long: bool,
-        receiver: Account
+        receiver: Identity
     ) -> u256 {
         sl_require_not_paused();
         
@@ -1001,11 +982,11 @@ impl Vault for Contract {
 
     #[storage(read, write)]
     fn liquidate_position(
-        account: Account,
+        account: Identity,
         collateral_asset: AssetId,
         index_asset: AssetId,
         is_long: bool,
-        fee_receiver: Account
+        fee_receiver: Identity
     ) {
         sl_require_not_paused();
         
@@ -1041,7 +1022,7 @@ fn _transfer_in(asset: AssetId) -> u64 {
         // transfer assets to the Vault
         transfer_assets(
             asset,
-            Account::from(ContractId::this()),
+            Identity::ContractId(ContractId::this()),
             amount
         );
     }
@@ -1052,7 +1033,7 @@ fn _transfer_in(asset: AssetId) -> u64 {
 fn _transfer_out(
     asset: AssetId, 
     amount: u64, 
-    receiver: Account,
+    receiver: Identity,
 ) {
     transfer_assets(
         asset,
@@ -1069,6 +1050,57 @@ fn _validate_buffer_amount(asset: AssetId) {
     );
 }
 
+#[storage(write)]
+fn _write_position(
+    position_key: b256, 
+    position: Position
+) {
+    storage.positions.insert(position_key, position);
+    log(WritePosition {
+        position_key,
+        position,
+    });
+}
+
+#[storage(write)]
+fn _write_last_funding_time(
+    asset: AssetId, 
+    timestamp: u64
+) {
+    storage.last_funding_times.insert(asset, timestamp);
+    log(WriteLastFundingTime {
+        asset,
+        last_funding_time: timestamp,
+    });
+}
+
+#[storage(write)]
+fn _write_fee_reserve(
+    asset: AssetId, 
+    fee_reserve: u256
+) {
+    storage.fee_reserves.insert(asset, fee_reserve);
+    log(WriteFeeReserve {
+        asset,
+        fee_reserve,
+    });
+}
+
+#[storage(write)]
+fn _write_global_short_average_price(
+    asset: AssetId, 
+    global_short_average_price: u256
+) {
+    storage.global_short_average_prices.insert(
+        asset, 
+        global_short_average_price
+    );
+    log(WriteGlobalShortAveragePrice {
+        asset,
+        global_short_average_price,
+    });
+}
+
 #[storage(read, write)]
 fn _collect_swap_fees(
     asset: AssetId, 
@@ -1079,7 +1111,7 @@ fn _collect_swap_fees(
     let fee_amount = amount - after_fee_amount;
 
     let fee_reserve = _get_fee_reserves(asset);
-    storage.fee_reserves.insert(asset, fee_reserve + fee_amount.as_u256());
+    _write_fee_reserve(asset, fee_reserve + fee_amount.as_u256());
 
     log(CollectSwapFees {
         asset,
@@ -1299,7 +1331,7 @@ fn _get_cumulative_funding_rate(asset: AssetId) -> u256 {
 }
 
 fn _get_position_key(
-    account: Account,
+    account: Identity,
     collateral_asset: AssetId,
     index_asset: AssetId,
     is_long: bool,
@@ -1316,7 +1348,7 @@ fn _get_position_key(
 // used in getFundingFee will not be the latest value
 #[storage(read)]
 fn _validate_liquidation(
-    account: Account,
+    account: Identity,
     collateral_asset: AssetId,
     index_asset: AssetId,
     is_long: bool,
@@ -1470,7 +1502,7 @@ fn _get_delta(
 
 #[storage(read)]
 fn _get_position_fee(
-    _account: Account,
+    _account: Identity,
     _collateral_asset: AssetId,
     _index_asset: AssetId,
     _is_long: bool,
@@ -1544,7 +1576,7 @@ fn _get_funding_fee(
 
 #[storage(read)]
 fn _get_position_delta(
-    account: Account,
+    account: Identity,
     collateral_asset: AssetId,
     index_asset: AssetId,
     is_long: bool,
@@ -1684,7 +1716,7 @@ fn _decrease_rusd_amount(asset: AssetId, amount: u256) {
     // it is possible for the RUSD debt for a single asset to be less than zero
     // the RUSD debt is capped to zero for this case
     if value <= amount {
-        storage.rusd_amounts.insert(asset, 0);
+        let _ = storage.rusd_amounts.remove(asset);
         log(WriteRusdAmount { asset, rusd_amount: 0 });
     } else {
         let new_rusd_amount = value - amount;
@@ -1694,25 +1726,31 @@ fn _decrease_rusd_amount(asset: AssetId, amount: u256) {
 }
 
 #[storage(read, write)]
-fn _increase_guaranteed_usd(asset: AssetId, usd_amount: u256) {
-    let new_guaranteed_amount = _get_guaranteed_usd(asset) + usd_amount;
+fn _increase_guaranteed_usd(
+    asset: AssetId, 
+    usd_amount: u256
+) {
+    let guaranteed_amount = _get_guaranteed_usd(asset) + usd_amount;
     storage.guaranteed_usd.insert(
         asset,
-        new_guaranteed_amount
+        guaranteed_amount
     );
     
-    log(WriteGuaranteedAmount { asset, guaranteed_amount: new_guaranteed_amount });
+    log(WriteGuaranteedAmount { asset, guaranteed_amount});
 }
 
 #[storage(read, write)]
-fn _decrease_guaranteed_usd(asset: AssetId, usd_amount: u256) {
-    let new_guaranteed_amount = _get_guaranteed_usd(asset) - usd_amount;
+fn _decrease_guaranteed_usd(
+    asset: AssetId, 
+    usd_amount: u256
+) {
+    let guaranteed_amount = _get_guaranteed_usd(asset) - usd_amount;
     storage.guaranteed_usd.insert(
         asset,
-        new_guaranteed_amount
+        guaranteed_amount
     );
 
-    log(WriteGuaranteedAmount { asset, guaranteed_amount: new_guaranteed_amount });
+    log(WriteGuaranteedAmount { asset, guaranteed_amount});
 }
 
 #[storage(read, write)]
@@ -1793,10 +1831,7 @@ fn _update_cumulative_funding_rate(collateral_asset: AssetId) {
     let funding_interval = storage.funding_interval.read();
 
     if last_funding_time == 0 {
-        storage.last_funding_times.insert(
-            collateral_asset, 
-            timestamp
-        );
+        _write_last_funding_time(collateral_asset, timestamp);
         return;
     }
 
@@ -1812,7 +1847,7 @@ fn _update_cumulative_funding_rate(collateral_asset: AssetId) {
         new_cumulative_funding_rate
     );
 
-    storage.last_funding_times.insert(collateral_asset, timestamp);
+    _write_last_funding_time(collateral_asset, timestamp);
 
     log(UpdateFundingRate {
         asset: collateral_asset,
@@ -1837,10 +1872,10 @@ fn _get_redemption_collateral(asset: AssetId) -> u256 {
 }
 
 #[storage(read)]
-fn _validate_router(account: Account) {
+fn _validate_router(account: Identity) {
     let sender = get_sender();
 
-    if sender == account || sender == Account::from(storage.router.read()) {
+    if sender == account || sender == Identity::ContractId(storage.router.read()) {
         return;
     }
 
@@ -1971,7 +2006,7 @@ fn _get_next_global_short_average_price(
 
 #[storage(read, write)]
 fn _collect_margin_fees(
-    account: Account,
+    account: Identity,
     collateral_asset: AssetId,
     index_asset: AssetId,
     is_long: bool,
@@ -2000,10 +2035,7 @@ fn _collect_margin_fees(
 
     fee_assets = _usd_to_asset_min(collateral_asset, fee_usd);
     let new_fee_reserve =  _get_fee_reserves(collateral_asset) + fee_assets;
-    storage.fee_reserves.insert(
-        collateral_asset,
-        new_fee_reserve
-    );
+    _write_fee_reserve(collateral_asset, new_fee_reserve);
 
     log(CollectMarginFees {
         asset: collateral_asset,
@@ -2017,7 +2049,7 @@ fn _collect_margin_fees(
 #[storage(read, write)]
 fn _withdraw_fees(
     asset: AssetId,
-    receiver: Account,
+    receiver: Identity,
 ) -> u64 {
     let amount = u64::try_from(_get_fee_reserves(asset)).unwrap();
     if amount == 0 {
@@ -2044,7 +2076,7 @@ fn _withdraw_fees(
 #[storage(read, write)]
 fn _buy_rusd(
     asset: AssetId, 
-    receiver: Account,
+    receiver: Identity,
 ) -> u256 {
     require(
         !receiver.is_zero(),
@@ -2096,7 +2128,7 @@ fn _buy_rusd(
 
     let rusd = abi(SRC3, storage.rusd_contr.read().into());
     rusd.mint(
-        account_to_identity(receiver),
+        receiver,
         ZERO, // this is unused, but required by the interface to meet the SRC3 standard
         u64::try_from(mint_amount).unwrap(),
     );
@@ -2115,7 +2147,7 @@ fn _buy_rusd(
 #[storage(read, write)]
 fn _sell_rusd(
     asset: AssetId, 
-    receiver: Account,
+    receiver: Identity,
 ) -> u256 {
     require(
         !receiver.is_zero(),
@@ -2196,7 +2228,7 @@ fn _sell_rusd(
 fn _swap(
     asset_in: AssetId,
     asset_out: AssetId,
-    receiver: Account,
+    receiver: Identity,
 ) -> u64 {
     require(
         !receiver.is_zero(),
@@ -2271,7 +2303,7 @@ fn _swap(
 
 #[storage(read, write)]
 fn _increase_position(
-    account: Account,
+    account: Identity,
     collateral_asset: AssetId,
     index_asset: AssetId, 
     size_delta: u256,
@@ -2363,7 +2395,8 @@ fn _increase_position(
     _validate_position(position.size, position.collateral);
     // we need to have a storage write here because _validate_liquidation re-constructs the position key and 
     // validates the average_price. If not for this position write, it would receive a stale avg price (could be 0)
-    storage.positions.insert(position_key, position);
+    _write_position(position_key, position);
+
     let (_liquidation_state, _margin_fees) = _validate_liquidation(
         account,
         collateral_asset,
@@ -2396,7 +2429,7 @@ fn _increase_position(
     } else {
         let global_short_size = _get_global_short_sizes(index_asset);
         if global_short_size == 0 {
-            storage.global_short_average_prices.insert(index_asset, price);
+            _write_global_short_average_price(index_asset, price);
         } else {
             let new_price = _get_next_global_short_average_price(
                 index_asset,
@@ -2404,7 +2437,7 @@ fn _increase_position(
                 size_delta,
             );
 
-            storage.global_short_average_prices.insert(index_asset, new_price);
+            _write_global_short_average_price(index_asset, new_price);
         }
 
         _increase_global_short_size(index_asset, size_delta);
@@ -2433,18 +2466,18 @@ fn _increase_position(
         mark_price: price,
     });
 
-    storage.positions.insert(position_key, position);
+    _write_position(position_key, position);
 }
 
 #[storage(read, write)]
 fn _decrease_position(
-    account: Account,
+    account: Identity,
     collateral_asset: AssetId,
     index_asset: AssetId,
     collateral_delta: u256,
     size_delta: u256,
     is_long: bool,
-    receiver: Account,
+    receiver: Identity,
     should_validate_router: bool,
 ) -> u256 {
     require(
@@ -2475,7 +2508,7 @@ fn _decrease_position(
     let reserve_delta = position.reserve_amount * size_delta / position.size;
     position.reserve_amount = position.reserve_amount - reserve_delta;
     // update storage because the above changes are ignored by call to other fn `_reduce_collateral`
-    storage.positions.insert(position_key, position);
+    _write_position(position_key, position);
 
     _decrease_reserved_amount(collateral_asset, reserve_delta);
 
@@ -2498,7 +2531,7 @@ fn _decrease_position(
         // update storage because the above changes are ignored by call to other fn `validate_liquidation`
         // we need to have a storage write here because _validate_liquidation re-constructs the position key and 
         // validates the max_leverage. If not for this position write, it would receive an incorrect max_leverage error
-        storage.positions.insert(position_key, position);
+        _write_position(position_key, position);
         let (_liquidation_state, _margin_fees) = _validate_liquidation(
             account,
             collateral_asset,
@@ -2540,7 +2573,7 @@ fn _decrease_position(
             mark_price: price,
         });
 
-        storage.positions.insert(position_key, position);
+        _write_position(position_key, position);
     } else {
         if is_long {
             _increase_guaranteed_usd(collateral_asset, collateral);
@@ -2574,7 +2607,12 @@ fn _decrease_position(
             realized_pnl: position.realized_pnl,
         });
 
-        storage.positions.insert(position_key, Position::default());
+        // remove the position from storage
+        storage.positions.remove(position_key);
+        log(WritePosition {
+            position_key,
+            position: Position::default(),
+        });
         position = _get_position_by_key(position_key);
     }
 
@@ -2598,7 +2636,7 @@ fn _decrease_position(
             receiver,
         );
         
-        storage.positions.insert(position_key, position);
+        _write_position(position_key, position);
 
         return amount_out_after_fees;
     }
@@ -2608,7 +2646,7 @@ fn _decrease_position(
 
 #[storage(read, write)]
 fn _reduce_collateral(
-    account: Account,
+    account: Identity,
     collateral_asset: AssetId,
     index_asset: AssetId,
     collateral_delta: u256,
@@ -2702,7 +2740,7 @@ fn _reduce_collateral(
         }
     }
 
-    storage.positions.insert(position_key, position);
+    _write_position(position_key, position);
 
     log(UpdatePnl {
         key: position_key,
@@ -2714,11 +2752,11 @@ fn _reduce_collateral(
 
 #[storage(read, write)]
 fn _liquidate_position(
-    account: Account,
+    account: Identity,
     collateral_asset: AssetId,
     index_asset: AssetId,
     is_long: bool,
-    fee_receiver: Account,
+    fee_receiver: Identity,
 ) {
     require(
         !account.is_zero(),
@@ -2773,10 +2811,11 @@ fn _liquidate_position(
     }
 
     let fee_assets = _usd_to_asset_min(collateral_asset, margin_fees);
-    storage.fee_reserves.insert(
-        collateral_asset,
+    _write_fee_reserve(
+        collateral_asset, 
         _get_fee_reserves(collateral_asset) + fee_assets
     );
+
     log(CollectMarginFees {
         asset: collateral_asset,
         fee_usd: margin_fees,

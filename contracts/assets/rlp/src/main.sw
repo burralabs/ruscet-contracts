@@ -28,7 +28,6 @@ use std::{
 };
 use std::hash::*;
 use helpers::{
-    context::*, 
     utils::*, 
     transfer::*,
     zero::*
@@ -51,11 +50,12 @@ use sway_libs::{
 use asset_interfaces::rlp::RLP;
 use errors::*;
 use events::*;
+
 const DECIMALS: u8 = 9;
 const DEFAULT_SUB_ID: SubId = SubId::zero();
 
 storage {
-    gov: Account = ZERO_ACCOUNT,
+    gov: Identity = ZERO_ACCOUNT,
     is_initialized: bool = false,
     
     name: StorageString = StorageString {},
@@ -67,7 +67,7 @@ storage {
     /// value for this is ALWAYS 1
     total_assets: u64 = 0,
 
-    approved_minters: StorageMap<Account, bool> = StorageMap {},
+    approved_minters: StorageMap<Identity, bool> = StorageMap {},
 }
 
 impl RLP for Contract {
@@ -81,6 +81,23 @@ impl RLP for Contract {
 
         storage.name.write_slice(String::from_ascii_str("RLP"));
         storage.symbol.write_slice(String::from_ascii_str("RLP"));
+
+        let sender = get_sender();
+        log(SetNameEvent { 
+            asset: _get_id(),
+            name: storage.name.read_slice(),
+            sender
+        });
+        log(SetSymbolEvent { 
+            asset: _get_id(),
+            symbol: storage.symbol.read_slice(),
+            sender
+        });
+        log(SetDecimalsEvent { 
+            asset: _get_id(),
+            decimals: DECIMALS,
+            sender
+        });
         
         let sender = get_sender();
         storage.gov.write(sender);
@@ -97,14 +114,14 @@ impl RLP for Contract {
       /_/_/    /_/   \_\__,_|_| |_| |_|_|_| |_|                         
     */
     #[storage(read, write)]
-    fn set_gov(gov: Account) {
+    fn set_gov(gov: Identity) {
         _only_gov();
         storage.gov.write(gov);
         log(SetGov { gov });
     }
 
     #[storage(read, write)]
-    fn set_minter(minter: Account, is_active: bool) {
+    fn set_minter(minter: Identity, is_active: bool) {
         _only_gov();
 
         storage.approved_minters.insert(minter, is_active);
@@ -153,6 +170,7 @@ impl SRC20 for Contract {
     }
 
     /// @dev only 1 DEFAULT_SUB_ID is utilized for RLP minting
+    /// @dev value should always yield 1
     #[storage(read)]
     fn total_assets() -> u64 {
         storage.total_assets.read()
@@ -218,7 +236,7 @@ fn _mint(
         amount > 0,
         Error::RLPMintZeroAmount
     );
-    // require(recipient != ZERO_IDENTITY, Error::RLPMintToZeroAccount);
+    // require(recipient != ZERO_IDENTITY, Error::RLPMintToZeroIdentity);
 
     let _ = sl_mint(
         storage.total_assets,

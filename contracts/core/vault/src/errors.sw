@@ -18,7 +18,6 @@ pub enum Error {
 
     VaultCannotBeLiquidated: (),
 
-    VaultInvalidFundingInterval: (),
     VaultInvalidFundingRateFactor: (),
     VaultInvalidStableFundingRateFactor: (),
 

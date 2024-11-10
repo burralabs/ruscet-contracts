@@ -10,30 +10,16 @@ export type AssetId = {
     bits: string
 }
 
-export type Account = {
-    value: string
-    is_contract: boolean
-}
+type Enum<T> = {
+    [K in keyof T]: Pick<T, K> & { [P in Exclude<keyof T, K>]?: never }
+}[keyof T]
 
-export type ContractAccount = {
-    value: string
-    is_contract: true
-}
-
-export type AddressAccount = {
-    value: string
-    is_contract: false
-}
-
-export type Identity = {
-    ContractId?: { bits: string }
-    Address?: { bits: string }
-}
+export type Identity = Enum<{ Address: Address; ContractId: ContractId }>
 
 export type ContractIdentity = {
-    ContractId?: { bits: string }
+    ContractId: { bits: string }
 }
 
 export type AddressIdentity = {
-    Address?: { bits: string }
+    Address: { bits: string }
 }

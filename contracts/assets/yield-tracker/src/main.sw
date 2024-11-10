@@ -25,7 +25,6 @@ use std::{
 use std::hash::*;
 use helpers::{
     zero::*,
-    context::*, 
     utils::*, 
     transfer::*
 };
@@ -39,7 +38,7 @@ use errors::*;
 const PRECISION: u256 = 0xC9F2C9CD04674EDEA40000000u256; // 10 ** 30;
 
 storage {
-    gov: Account = ZERO_ACCOUNT,
+    gov: Identity = ZERO_ACCOUNT,
     is_initialized: bool = false,
     
     yield_asset: ContractId = ZERO_CONTRACT,
@@ -47,8 +46,8 @@ storage {
 
     cumulative_reward_per_asset: u256 = 0,
 
-    claimable_reward: StorageMap<Account, u256> = StorageMap {},
-    previous_cumulated_reward_per_asset: StorageMap<Account, u256> = StorageMap {}
+    claimable_reward: StorageMap<Identity, u256> = StorageMap {},
+    previous_cumulated_reward_per_asset: StorageMap<Identity, u256> = StorageMap {}
 }
 
 impl YieldTracker for Contract {
@@ -72,7 +71,7 @@ impl YieldTracker for Contract {
       /_/_/    /_/   \_\__,_|_| |_| |_|_|_| |_|                         
     */
     #[storage(read, write)]
-    fn set_gov(new_gov: Account) {
+    fn set_gov(new_gov: Identity) {
         _only_gov();
         storage.gov.write(new_gov);
     }
@@ -95,12 +94,12 @@ impl YieldTracker for Contract {
         abi(
             TimeDistributor, 
             storage.time_distributor.read().into()
-        ).get_assets_per_interval(Account::from(ContractId::this()))  
+        ).get_assets_per_interval(Identity::ContractId(ContractId::this()))  
     }
 
     #[storage(read)]
     fn claimable(
-        account: Account,
+        account: Identity,
         // staked balance of the account
         // we can't accurately calculate the staked balance of an account onchain because of Fuel's UTXO model
         // so we pass it as an argument to this function
@@ -114,7 +113,7 @@ impl YieldTracker for Contract {
         }
 
         let pending_rewards = time_distributor.get_distribution_amount(
-            Account::from(ContractId::this())
+            Identity::ContractId(ContractId::this())
         ).as_u256() * PRECISION;
         
         let total_staked = yield_asset.total_staked().as_u256();
@@ -139,7 +138,7 @@ impl YieldTracker for Contract {
     */
     #[storage(read, write)]
     fn update_rewards(
-        account: Account,
+        account: Identity,
         // staked balance of the account
         yield_asset_staked_balance: u256
     ) {
@@ -148,8 +147,8 @@ impl YieldTracker for Contract {
 
     #[storage(read, write)]
     fn claim(
-        account: Account,
-        receiver: Account,
+        account: Identity,
+        receiver: Identity,
         // staked balance of the account
         yield_asset_staked_balance: u256
     ) -> u256 {
@@ -166,7 +165,7 @@ impl YieldTracker for Contract {
         let reward_asset = abi(
             TimeDistributor, 
             storage.time_distributor.read().into()
-        ).get_reward_asset(Account::from(ContractId::this()));
+        ).get_reward_asset(Identity::ContractId(ContractId::this()));
         
         transfer_assets(
             reward_asset,
@@ -189,7 +188,7 @@ fn _only_gov() {
 
 #[storage(read, write)]
 fn _update_rewards(
-    account: Account,
+    account: Identity,
     // staked balance of the account
     yield_asset_staked_balance: u256
 ) {

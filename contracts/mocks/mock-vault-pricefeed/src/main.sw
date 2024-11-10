@@ -21,7 +21,6 @@ use std::{
 use std::hash::*;
 use helpers::{
     time::get_unix_timestamp,
-    context::*, 
     zero::*, 
     utils::*,
 };
@@ -35,7 +34,7 @@ use errors::*;
 storage {
     // gov is not restricted to an `Address` (EOA) or a `Contract` (external)
     // because this can be either a regular EOA (Address) or a Multisig (Contract)
-    gov: Account = ZERO_ACCOUNT,
+    gov: Identity = ZERO_ACCOUNT,
     is_initialized: bool = false,
 
     is_amm_enabled: bool = false,
@@ -66,7 +65,7 @@ storage {
 
 impl MockVaultPricefeed for Contract {
     #[storage(read, write)]
-    fn initialize(gov: Account) {
+    fn initialize(gov: Identity) {
         require(!storage.is_initialized.read(), Error::MockVaultPriceFeedAlreadyInitialized);
         storage.is_initialized.write(true);
         storage.gov.write(gov);
