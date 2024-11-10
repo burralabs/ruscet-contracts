@@ -46,6 +46,9 @@ abi YieldTracker {
        / / /   |  __/| |_| | |_) | | | (__ 
       /_/_/    |_|    \__,_|_.__/|_|_|\___|
     */
+    /// callable only by the YieldAsset contract for the specific YieldTracker contract
+    /// the YieldAsset contract is responsible for retrieving the latest staked balance of an account
+    /// since doing so onchain isn't possible with Fuel's UTXO model
     #[storage(read, write)]
     fn update_rewards(
         account: Identity,
@@ -53,6 +56,9 @@ abi YieldTracker {
         yield_asset_staked_balance: u256
     );
 
+    /// callable only by the YieldAsset contract for the specific YieldTracker contract
+    /// the YieldAsset contract is responsible for retrieving the latest staked balance of an account
+    /// since doing so onchain isn't possible with Fuel's UTXO model
     #[storage(read, write)]
     fn claim(
         account: Identity,

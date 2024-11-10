@@ -73,7 +73,7 @@ impl Hash for PriceMessage {
 storage {
     // gov is not restricted to an `Address` (EOA) or a `Contract` (external)
     // because this can be either a regular EOA (Address) or a Multisig (Contract)
-    gov: Identity = ZERO_ACCOUNT,
+    gov: Identity = ZERO_IDENTITY,
     is_initialized: bool = false,
 
     // asset -> pyth pricefeed id

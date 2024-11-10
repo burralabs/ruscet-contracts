@@ -35,8 +35,8 @@ use events::*;
 const DISTRIBUTION_INTERVAL: u64 = 3600; // 1 hour
 
 storage {
-    gov: Identity = ZERO_ACCOUNT,
-    admin: Identity = ZERO_ACCOUNT,
+    gov: Identity = ZERO_IDENTITY,
+    admin: Identity = ZERO_IDENTITY,
     is_initialized: bool = false,
     
     reward_assets: StorageMap<Identity, AssetId> = StorageMap {},

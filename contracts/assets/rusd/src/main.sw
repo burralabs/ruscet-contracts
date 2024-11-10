@@ -67,7 +67,7 @@ storage {
          | | | |  __/ | (_| |  / ___ \\__ \__ \  __/ |_ 
          |_| |_|\___|_|\__,_| /_/   \_\___/___/\___|\__|   
     */
-    gov: Identity = ZERO_ACCOUNT,
+    gov: Identity = ZERO_IDENTITY,
     staked_balance_handler: Address = ZERO_ADDRESS,
     is_initialized: bool = false,
     

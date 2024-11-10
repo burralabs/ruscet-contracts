@@ -55,7 +55,7 @@ const DECIMALS: u8 = 9;
 const DEFAULT_SUB_ID: SubId = SubId::zero();
 
 storage {
-    gov: Identity = ZERO_ACCOUNT,
+    gov: Identity = ZERO_IDENTITY,
     is_initialized: bool = false,
     
     name: StorageString = StorageString {},

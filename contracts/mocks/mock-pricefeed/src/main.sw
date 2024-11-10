@@ -26,7 +26,7 @@ use mock_interfaces::mock_pricefeed::MockPricefeed;
 use errors::*;
 
 storage {
-    gov: Identity = ZERO_ACCOUNT,
+    gov: Identity = ZERO_IDENTITY,
     is_initialized: bool = false,
     answer: u256 = 0,
     decimals: u8 = 9,
