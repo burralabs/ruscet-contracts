@@ -8,11 +8,11 @@ Trading on Ruscet is supported by multi-asset pools that earns liquidity provide
 
 The main components of the protocol are:
 
--- **Vault**
+- **Vault**
 
--- **RLP**
+- **RLP**
 
--- **Pricefeeds**
+- **Pricefeeds**
 
 ### 1. Vault
 
