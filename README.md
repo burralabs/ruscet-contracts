@@ -14,16 +14,15 @@ The main components of the protocol are:
 
 ### 1. Vault
 
-`Vault` comprises a modular design and consists of the following contracts:
+`Vault` is the core contract that handles all trading and liquidity operations. It acts as a peer-to-pool system where users trade against a pool of assets rather than directly with other users. The contract manages:
 
--   `VaultStorage`       (contract storage)
--   `VaultUtils`         (contract storage + utility functions)
--   `Vault`/`VaultPool`  (all pooled assets stored here)
--   `VaultRusd`          (RUSD-specific logic)
--   `VaultPosition`      (position logic)
--   `VaultRouter`        (router logic)
+-   Pooled assets from liquidity providers
+-   Opening/closing of leveraged long/short positions
+-   Minting/burning of the RUSD stablecoin
+-   Liquidations and funding rates
+-   Swap functionality between supported assets
 
-The reasoning behind this decision, though unnecessarily complex, is to get around the Sway compiler restrictions on inlined code size and to allow for easier upgradability of the core logic.
+The Vault maintains solvency by ensuring the value of all assets in the pool exceeds the sum of all user deposits and profits. Position collateral is held in the Vault, and liquidations occur automatically when positions become undercollateralized.
 
 ### 2. RLP
 
@@ -34,7 +33,6 @@ The price of RLP is pegged to the worth of all underlying assets within the `Vau
 ### 3. Pricefeeds
 
 `VaultPriceFeed` handles querying and updating of prices from the Pyth network for all assets within the `Vault` pool.
-
 
 ## Testing
 
