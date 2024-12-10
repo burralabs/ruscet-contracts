@@ -13,7 +13,7 @@ enum ReentrancyError {
 }
 
 #[storage(read, write)]
-pub fn begin_non_reentrant(lock_storage_key: StorageKey<bool>) {
+pub fn _begin_non_reentrant(lock_storage_key: StorageKey<bool>) {
     require(
         !lock_storage_key.read(),
         ReentrancyError::ReentrantCall
@@ -22,6 +22,6 @@ pub fn begin_non_reentrant(lock_storage_key: StorageKey<bool>) {
 }
 
 #[storage(write)]
-pub fn end_non_reentrant(lock_storage_key: StorageKey<bool>) {
+pub fn _end_non_reentrant(lock_storage_key: StorageKey<bool>) {
     lock_storage_key.write(false);
 }

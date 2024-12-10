@@ -4,8 +4,10 @@ members = [
     "contracts/mocks/mock-pricefeed",
 
     "contracts/core/vault-pricefeed",
-
     "contracts/core/vault",
+
+    "contracts/core/rlp-manager",
+    "contracts/core/shorts-tracker",
 
     "contracts/assets/yield-tracker",
     "contracts/assets/rusd",
