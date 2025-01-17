@@ -868,7 +868,7 @@ impl Vault for Contract {
     fn direct_pool_deposit(asset: AssetId) {
         sl_require_not_paused();
 
-        begin_non_reentrant(storage.lock);
+        _begin_non_reentrant(storage.lock);
 
         require(
             storage.whitelisted_assets.get(asset).try_read().unwrap_or(false),
@@ -885,7 +885,7 @@ impl Vault for Contract {
             amount: amount,
         });
 
-        end_non_reentrant(storage.lock);
+        _end_non_reentrant(storage.lock);
     }
 
     #[payable]
@@ -893,10 +893,10 @@ impl Vault for Contract {
     fn buy_rusd(asset: AssetId, receiver: Identity) -> u256 {
         sl_require_not_paused();
         
-        begin_non_reentrant(storage.lock);
+        _begin_non_reentrant(storage.lock);
         
         let amount_out = _buy_rusd(asset, receiver);
-        end_non_reentrant(storage.lock);
+        _end_non_reentrant(storage.lock);
 
         amount_out
     }
@@ -906,10 +906,10 @@ impl Vault for Contract {
     fn sell_rusd(asset: AssetId, receiver: Identity) -> u256 {
         sl_require_not_paused();
         
-        begin_non_reentrant(storage.lock);
+        _begin_non_reentrant(storage.lock);
 
         let amount_out = _sell_rusd(asset, receiver);
-        end_non_reentrant(storage.lock);
+        _end_non_reentrant(storage.lock);
 
         amount_out
     }
@@ -923,10 +923,10 @@ impl Vault for Contract {
     ) -> u64 {
         sl_require_not_paused();
         
-        begin_non_reentrant(storage.lock);
+        _begin_non_reentrant(storage.lock);
 
         let amount_out = _swap(asset_in, asset_out, receiver);
-        end_non_reentrant(storage.lock);
+        _end_non_reentrant(storage.lock);
 
         amount_out
     }
@@ -942,11 +942,11 @@ impl Vault for Contract {
     ) {
         sl_require_not_paused();
         
-        begin_non_reentrant(storage.lock);
+        _begin_non_reentrant(storage.lock);
 
         _increase_position(account, collateral_asset, index_asset, size_delta, is_long);
         
-        end_non_reentrant(storage.lock);
+        _end_non_reentrant(storage.lock);
     }
 
     #[storage(read, write)]
@@ -961,7 +961,7 @@ impl Vault for Contract {
     ) -> u256 {
         sl_require_not_paused();
         
-        begin_non_reentrant(storage.lock);
+        _begin_non_reentrant(storage.lock);
 
         _validate_router(account);
         let amount_out = _decrease_position(
@@ -975,7 +975,7 @@ impl Vault for Contract {
             true
         );
 
-        end_non_reentrant(storage.lock);
+        _end_non_reentrant(storage.lock);
 
         amount_out
     }
@@ -990,11 +990,11 @@ impl Vault for Contract {
     ) {
         sl_require_not_paused();
         
-        begin_non_reentrant(storage.lock);
+        _begin_non_reentrant(storage.lock);
         
         _liquidate_position(account, collateral_asset, index_asset, is_long, fee_receiver);
         
-        end_non_reentrant(storage.lock);
+        _end_non_reentrant(storage.lock);
     }
 }
 
