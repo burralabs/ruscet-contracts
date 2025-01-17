@@ -25,6 +25,9 @@ pub struct PositionKey {
 }
 
 abi Vault {
+    /// Get the revision of the contract
+    fn get_revision() -> u8;
+    
     #[storage(read, write)]
     fn initialize(
         gov: Identity,
@@ -342,6 +345,9 @@ abi Vault {
     fn get_utilization(asset: AssetId) -> u256;
 
     #[storage(read)]
+    fn get_next_funding_rate(asset: AssetId) -> u256;
+
+    #[storage(read)]
     fn get_global_short_delta(asset: AssetId) -> (bool, u256);
 
     #[storage(read)]
@@ -355,6 +361,25 @@ abi Vault {
         is_long: bool,
         should_raise: bool,
     ) -> (u256, u256);
+
+    #[storage(read)]
+    fn get_buy_rusd_amount(
+        asset: AssetId,
+        asset_amount: u64
+    ) -> (u256, u256, u256);
+
+    #[storage(read)]
+    fn get_sell_rusd_amount(
+        asset: AssetId,
+        rusd_amount: u256
+    ) -> (u256, u64, u256);
+
+    #[storage(read)]
+    fn adjust_for_decimals(
+        amount: u256, 
+        asset_div: AssetId, 
+        asset_mul: AssetId
+    ) -> u256;
     
     /*
           ____  ____        _     _ _

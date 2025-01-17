@@ -131,7 +131,7 @@ pub struct Swap {
     pub asset_out: AssetId,
     pub amount_in: u256,
     pub amount_out: u256,
-    pub amount_out_after_fees: u256,
+    pub amount_out_after_fees: u64,
     pub fee_basis_points: u256,
 }
 
@@ -161,30 +161,6 @@ pub struct IncreasePosition {
     pub fee: u256,
 }
 
-pub struct UpdatePosition {
-    pub key: b256,
-    pub size: u256,
-    pub collateral: u256,
-    pub average_price: u256,
-    pub entry_funding_rate: u256,
-    pub reserve_amount: u256,
-    pub realized_pnl: Signed256,
-    pub mark_price: u256,
-}
-
-pub struct LiquidatePosition {
-    pub key: b256,
-    pub account: Identity,
-    pub collateral_asset: AssetId,
-    pub index_asset: AssetId,
-    pub is_long: bool,
-    pub size: u256,
-    pub collateral: u256,
-    pub reserve_amount: u256,
-    pub realized_pnl: Signed256,
-    pub mark_price: u256,
-}
-
 pub struct DecreasePosition {
     pub key: b256,
     pub account: Identity,
@@ -205,6 +181,19 @@ pub struct ClosePosition {
     pub entry_funding_rate: u256,
     pub reserve_amount: u256,
     pub realized_pnl: Signed256,
+}
+
+pub struct LiquidatePosition {
+    pub key: b256,
+    pub account: Identity,
+    pub collateral_asset: AssetId,
+    pub index_asset: AssetId,
+    pub is_long: bool,
+    pub size: u256,
+    pub collateral: u256,
+    pub reserve_amount: u256,
+    pub realized_pnl: Signed256,
+    pub mark_price: u256,
 }
 
 pub struct UpdatePnl {

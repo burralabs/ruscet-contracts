@@ -58,6 +58,9 @@ use events::*;
 use constants::*;
 use errors::*;
 
+// revision of the contract
+const REVISION: u8 = 4u8;
+
 storage {
     // gov is not restricted to an `Address` (EOA) or a `Contract` (external)
     // because this can be either a regular EOA (Address) or a Multisig (Contract)
@@ -183,6 +186,11 @@ impl Pausable for Contract {
 }
 
 impl Vault for Contract {
+    /// Get the revision of the contract
+    fn get_revision() -> u8 {
+        REVISION
+    }
+
     #[storage(read, write)]
     fn initialize(
         gov: Identity,
@@ -823,6 +831,11 @@ impl Vault for Contract {
     }
 
     #[storage(read)]
+    fn get_next_funding_rate(asset: AssetId) -> u256 {
+       _get_next_funding_rate(asset) 
+    }
+
+    #[storage(read)]
     fn get_global_short_delta(asset: AssetId) -> (bool, u256) {
         _get_global_short_delta(asset)
     }
@@ -847,6 +860,31 @@ impl Vault for Contract {
             is_long,
             should_raise
         )
+    }
+
+    #[storage(read)]
+    fn get_buy_rusd_amount(
+        asset: AssetId,
+        asset_amount: u64
+    ) -> (u256, u256, u256) {
+        _get_buy_rusd_amount(asset, asset_amount)
+    }
+
+    #[storage(read)]
+    fn get_sell_rusd_amount(
+        asset: AssetId,
+        rusd_amount: u256
+    ) -> (u256, u64, u256) {
+        _get_sell_rusd_amount(asset, rusd_amount)
+    }
+
+    #[storage(read)]
+    fn adjust_for_decimals(
+        amount: u256, 
+        asset_div: AssetId, 
+        asset_mul: AssetId
+    ) -> u256 {
+        _adjust_for_decimals(amount, asset_div, asset_mul)
     }
 
     /*
@@ -1101,13 +1139,19 @@ fn _write_global_short_average_price(
     });
 }
 
+fn _get_after_fee_amount(
+    amount: u64, 
+    fee_basis_points: u64, 
+) -> u64 {
+    amount * (BASIS_POINTS_DIVISOR - fee_basis_points) / BASIS_POINTS_DIVISOR
+}
+
 #[storage(read, write)]
 fn _collect_swap_fees(
     asset: AssetId, 
     amount: u64, 
-    fee_basis_points: u64, 
-) -> u64 {
-    let after_fee_amount = amount * (BASIS_POINTS_DIVISOR - fee_basis_points) / BASIS_POINTS_DIVISOR;
+    after_fee_amount: u64, 
+) {
     let fee_amount = amount - after_fee_amount;
 
     let fee_reserve = _get_fee_reserves(asset);
@@ -1118,8 +1162,6 @@ fn _collect_swap_fees(
         fee_usd: _asset_to_usd_min(asset, fee_amount.as_u256()),
         fee_assets: fee_amount,
     });
-
-    after_fee_amount
 }
 
 #[storage(read)]
@@ -1539,7 +1581,7 @@ fn _get_next_funding_rate(asset: AssetId) -> u256 {
 
     let time_delta = get_unix_timestamp() - last_funding_time;
 
-    let intervals =  time_delta / funding_interval;
+    let intervals = time_delta / funding_interval;
     let pool_amount = _get_pool_amounts(asset);
     if pool_amount == 0 {
         return 0;
@@ -2073,6 +2115,38 @@ fn _withdraw_fees(
     amount
 }
 
+#[storage(read)]
+fn _get_buy_rusd_amount(
+    asset: AssetId,
+    asset_amount: u64
+) -> (u256, u256, u256) {
+    let price = _get_min_price(asset);
+    let rusd = storage.rusd.read();
+
+    let mut rusd_amount = asset_amount.as_u256() * price / PRICE_PRECISION;
+    rusd_amount = _adjust_for_decimals(rusd_amount, asset, rusd);
+    require(rusd_amount > 0, Error::VaultInvalidRusdAmount);
+
+    let fee_basis_points = _get_fee_basis_points(
+        asset,
+        rusd_amount,
+        storage.mint_burn_fee_basis_points.read().as_u256(),
+        storage.tax_basis_points.read().as_u256(),
+        true
+    );
+
+    let u64_amount_after_fees = _get_after_fee_amount(
+        asset_amount, 
+        u64::try_from(fee_basis_points).unwrap()
+    );
+    let amount_after_fees = u64_amount_after_fees.as_u256();
+
+    let mut mint_amount = amount_after_fees * price / PRICE_PRECISION;
+    mint_amount = _adjust_for_decimals(mint_amount, asset, rusd);
+
+    (mint_amount, amount_after_fees, fee_basis_points)
+}
+
 #[storage(read, write)]
 fn _buy_rusd(
     asset: AssetId, 
@@ -2093,29 +2167,20 @@ fn _buy_rusd(
 
     _update_cumulative_funding_rate(asset);
 
-    let price = _get_min_price(asset);
-    let rusd = storage.rusd.read();
-
-    let mut rusd_amount = asset_amount.as_u256() * price / PRICE_PRECISION;
-    rusd_amount = _adjust_for_decimals(rusd_amount, asset, rusd);
-    require(rusd_amount > 0, Error::VaultInvalidRusdAmount);
-
-    let fee_basis_points = _get_fee_basis_points(
+    let (
+        mint_amount, 
+        amount_after_fees, 
+        fee_basis_points
+    ) = _get_buy_rusd_amount(
         asset,
-        rusd_amount,
-        storage.mint_burn_fee_basis_points.read().as_u256(),
-        storage.tax_basis_points.read().as_u256(),
-        true
+        asset_amount
     );
-
-    let amount_after_fees = _collect_swap_fees(
+    // this needs to be called here because _get_buy_rusd_amount is read-only and cannot update state
+    _collect_swap_fees(
         asset,
         asset_amount,
-        u64::try_from(fee_basis_points).unwrap(),
-    ).as_u256();
-
-    let mut mint_amount = amount_after_fees * price / PRICE_PRECISION;
-    mint_amount = _adjust_for_decimals(mint_amount, asset, rusd);
+        u64::try_from(amount_after_fees).unwrap()
+    );
 
     _increase_rusd_amount(asset, mint_amount);
     _increase_pool_amount(asset, amount_after_fees);
@@ -2144,6 +2209,32 @@ fn _buy_rusd(
     mint_amount
 }
 
+#[storage(read)]
+fn _get_sell_rusd_amount(
+    asset: AssetId,
+    rusd_amount: u256
+) -> (u256, u64, u256) {
+    let redemption_amount = _get_redemption_amount(asset, rusd_amount);
+    require(redemption_amount > 0, Error::VaultInvalidRedemptionAmount);
+
+    let fee_basis_points = _get_fee_basis_points(
+        asset,
+        rusd_amount,
+        storage.mint_burn_fee_basis_points.read().as_u256(),
+        storage.tax_basis_points.read().as_u256(),
+        false
+    );
+    
+    let u64_redemption_amount = u64::try_from(redemption_amount).unwrap();
+    let amount_out = _get_after_fee_amount(
+        u64_redemption_amount, 
+        u64::try_from(fee_basis_points).unwrap()
+    );
+    require(amount_out > 0, Error::VaultInvalidAmountOut);
+
+    (redemption_amount, amount_out, fee_basis_points)
+}
+
 #[storage(read, write)]
 fn _sell_rusd(
     asset: AssetId, 
@@ -2163,49 +2254,40 @@ fn _sell_rusd(
 
     let rusd_amount = _transfer_in(rusd).as_u256();
     require(rusd_amount > 0, Error::VaultInvalidRusdAmount);
-
-    _update_cumulative_funding_rate(asset);
-
-    let redemption_amount = _get_redemption_amount(asset, rusd_amount);
-    require(redemption_amount > 0, Error::VaultInvalidRedemptionAmount);
-
-    _decrease_rusd_amount(asset, rusd_amount);
-    _decrease_pool_amount(asset, redemption_amount);
-
+    
     // require rusd_amount to be less than u64::max
     require(
         rusd_amount < u64::max().as_u256(),
         Error::VaultInvalidRUSDBurnAmountGtU64Max
     );
 
-    let _amount = u64::try_from(rusd_amount).unwrap();
+    _update_cumulative_funding_rate(asset);
 
+    let (
+        redemption_amount,
+        amount_out,
+        fee_basis_points
+    ) = _get_sell_rusd_amount(asset, rusd_amount);
+    // this needs to be called here because _get_sell_rusd_amount is read-only and cannot update state
+    _collect_swap_fees(
+        asset, 
+        u64::try_from(redemption_amount).unwrap(),
+        amount_out
+    );
+    require(amount_out > 0, Error::VaultInvalidAmountOut);
+
+    _decrease_rusd_amount(asset, rusd_amount);
+    _decrease_pool_amount(asset, redemption_amount);
+
+    let u64_rusd_amount = u64::try_from(rusd_amount).unwrap();
     let rusd_contr = abi(SRC3, storage.rusd_contr.read().into());
     rusd_contr.burn{
         asset_id: rusd.into(),
-        coins: _amount
+        coins: u64_rusd_amount
     }(
         ZERO, // this is unused, but required by the interface to meet the SRC3 standard
-        _amount
+        u64_rusd_amount
     );
-
-    // update asset balance
-    let _next_balance = balance_of(ContractId::this(), asset);
-
-    let fee_basis_points = _get_fee_basis_points(
-        asset,
-        rusd_amount,
-        storage.mint_burn_fee_basis_points.read().as_u256(),
-        storage.tax_basis_points.read().as_u256(),
-        false
-    );
-    
-    let amount_out = _collect_swap_fees(
-        asset, 
-        u64::try_from(redemption_amount).unwrap(), 
-        u64::try_from(fee_basis_points).unwrap(), 
-    );
-    require(amount_out > 0, Error::VaultInvalidAmountOut);
 
     _transfer_out(
         asset, 
@@ -2268,10 +2350,15 @@ fn _swap(
         rusd_amount,
     );
 
-    let amount_out_after_fees = _collect_swap_fees(
+    let u64_amount_out = u64::try_from(amount_out).unwrap();
+    let amount_out_after_fees = _get_after_fee_amount(
+        u64_amount_out,
+        u64::try_from(fee_basis_points).unwrap()
+    );
+    _collect_swap_fees(
         asset_out, 
-        u64::try_from(amount_out).unwrap(),
-        u64::try_from(fee_basis_points).unwrap(),
+        u64_amount_out,
+        amount_out_after_fees
     );
 
     _increase_rusd_amount(asset_in, rusd_amount);
@@ -2294,7 +2381,7 @@ fn _swap(
         asset_out,
         amount_in,
         amount_out,
-        amount_out_after_fees: amount_out_after_fees.as_u256(),
+        amount_out_after_fees,
         fee_basis_points,
     });
 
@@ -2455,17 +2542,6 @@ fn _increase_position(
         fee,
     });
 
-    log(UpdatePosition {
-        key: position_key,
-        size: position.size,
-        collateral: position.collateral,
-        average_price: position.average_price,
-        entry_funding_rate: position.entry_funding_rate,
-        reserve_amount: position.reserve_amount,
-        realized_pnl: position.realized_pnl,
-        mark_price: price,
-    });
-
     _write_position(position_key, position);
 }
 
@@ -2488,7 +2564,6 @@ fn _decrease_position(
     if should_validate_router {
         _validate_router(account);
     }
-
 
     _update_cumulative_funding_rate(collateral_asset);
 
@@ -2561,16 +2636,6 @@ fn _decrease_position(
             is_long,
             price,
             fee: usd_out - usd_out_after_fee,
-        });
-        log(UpdatePosition {
-            key: position_key,
-            size: position.size,
-            collateral: position.collateral,
-            average_price: position.average_price,
-            entry_funding_rate: position.entry_funding_rate,
-            reserve_amount: position.reserve_amount,
-            realized_pnl: position.realized_pnl,
-            mark_price: price,
         });
 
         _write_position(position_key, position);
@@ -2833,7 +2898,7 @@ fn _liquidate_position(
         _get_min_price(index_asset)
     } else {
         _get_max_price(index_asset)
-    };
+    }; 
 
     log(LiquidatePosition {
         key: position_key,
