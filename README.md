@@ -56,9 +56,11 @@ fuel-core run --snapshot ./chain-config --debug --db-type in-memory --graphql-ma
 pnpm test
 ```
 
-## Audits
+## Security
 
 Ruscet v1 has been thorougly audited by [Linum Labs](https://www.linumlabs.com/). The audit report can be found [here](https://github.com/burralabs/ruscet-contracts/tree/dev/audits).
+
+There is also an active bug bounty program by Immunefi. More information can be found [here](https://immunefi.com/bug-bounty/ruscet/).
 
 # License
 
