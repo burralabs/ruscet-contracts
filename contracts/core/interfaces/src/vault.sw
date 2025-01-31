@@ -43,13 +43,19 @@ abi Vault {
       /_/_/    /_/   \_\__,_|_| |_| |_|_|_| |_|                         
     */
     #[storage(write)]
-    fn set_liquidator(
-        liquidator: Identity, 
+    fn set_gov(gov: Identity);
+
+    #[storage(write)]
+    fn set_manager(
+        manager: ContractId, 
         is_active: bool
     );
 
     #[storage(write)]
-    fn set_gov(gov: Identity);
+    fn set_liquidator(
+        liquidator: Identity, 
+        is_active: bool
+    );
 
     #[storage(write)]
     fn set_pricefeed_provider(pricefeed_provider: ContractId);

@@ -59,7 +59,7 @@ use constants::*;
 use errors::*;
 
 // revision of the contract
-const REVISION: u8 = 4u8;
+const REVISION: u8 = 5u8;
 
 storage {
     // gov is not restricted to an `Address` (EOA) or a `Contract` (external)
@@ -160,6 +160,8 @@ storage {
     /// tracks the total size of all short positions for each Asset
     /// value is total size of all short positions across all users
     global_short_sizes: StorageMap<AssetId, u256> = StorageMap {},
+
+    managers: StorageMap<ContractId, bool> = StorageMap {},
 }
 
 impl Pausable for Contract {
@@ -225,6 +227,19 @@ impl Vault for Contract {
         _only_gov();
         storage.gov.write(gov);
         log(SetGov { gov })
+    }
+
+    #[storage(write)]
+    fn set_manager(
+        manager: ContractId, 
+        is_active: bool
+    ) {
+        _only_gov();
+        if(is_active) {
+            storage.managers.insert(manager, true);
+        } else {
+            storage.managers.remove(manager);
+        }
     }
 
     #[storage(write)]
@@ -1047,6 +1062,14 @@ impl Vault for Contract {
 #[storage(read)]
 fn _only_gov() {
     require(get_sender() == storage.gov.read(), Error::VaultForbiddenNotGov);
+}
+
+#[storage(read)]
+fn _only_manager() {
+    require(
+        storage.managers.get(get_contract_or_revert()).try_read().unwrap_or(false), 
+        Error::VaultForbiddenNotManager
+    );
 }
 
 fn _transfer_in(asset: AssetId) -> u64 {
@@ -2152,11 +2175,12 @@ fn _buy_rusd(
     asset: AssetId, 
     receiver: Identity,
 ) -> u256 {
+    _only_manager();
+    
     require(
         !receiver.is_zero(),
         Error::VaultReceiverCannotBeZero
     );
-
     require(
         _is_asset_whitelisted(asset),
         Error::VaultAssetNotWhitelisted
@@ -2240,11 +2264,12 @@ fn _sell_rusd(
     asset: AssetId, 
     receiver: Identity,
 ) -> u256 {
+    _only_manager();
+
     require(
         !receiver.is_zero(),
         Error::VaultReceiverCannotBeZero
     );
-
     require(
         _is_asset_whitelisted(asset),
         Error::VaultAssetNotWhitelisted
