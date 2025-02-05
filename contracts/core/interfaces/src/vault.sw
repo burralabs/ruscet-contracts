@@ -381,6 +381,13 @@ abi Vault {
     ) -> (u256, u64, u256);
 
     #[storage(read)]
+    fn get_swap_amounts(
+        asset_in: AssetId,
+        amount_in: u256,
+        asset_out: AssetId,
+    ) -> (u256, u64, u256, u256);
+
+    #[storage(read)]
     fn adjust_for_decimals(
         amount: u256, 
         asset_div: AssetId, 

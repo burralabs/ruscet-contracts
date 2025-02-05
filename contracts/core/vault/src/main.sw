@@ -160,7 +160,7 @@ storage {
     /// tracks the total size of all short positions for each Asset
     /// value is total size of all short positions across all users
     global_short_sizes: StorageMap<AssetId, u256> = StorageMap {},
-
+ 
     managers: StorageMap<ContractId, bool> = StorageMap {},
 }
 
@@ -894,6 +894,15 @@ impl Vault for Contract {
     }
 
     #[storage(read)]
+    fn get_swap_amounts(
+        asset_in: AssetId,
+        amount_in: u256,
+        asset_out: AssetId,
+    ) -> (u256, u64, u256, u256) {
+        _get_swap_amounts(asset_in, amount_in, asset_out)
+    }
+
+    #[storage(read)]
     fn adjust_for_decimals(
         amount: u256, 
         asset_div: AssetId, 
@@ -1045,7 +1054,13 @@ impl Vault for Contract {
         
         _begin_non_reentrant(storage.lock);
         
-        _liquidate_position(account, collateral_asset, index_asset, is_long, fee_receiver);
+        _liquidate_position(
+            account, 
+            collateral_asset, 
+            index_asset, 
+            is_long, 
+            fee_receiver
+        );
         
         _end_non_reentrant(storage.lock);
     }
@@ -2176,7 +2191,7 @@ fn _buy_rusd(
     receiver: Identity,
 ) -> u256 {
     _only_manager();
-    
+
     require(
         !receiver.is_zero(),
         Error::VaultReceiverCannotBeZero
@@ -2331,6 +2346,42 @@ fn _sell_rusd(
     amount_out.as_u256()
 }
 
+#[storage(read)]
+fn _get_swap_amounts(
+    asset_in: AssetId,
+    amount_in: u256,
+    asset_out: AssetId,
+) -> (u256, u64, u256, u256) {
+    let price_in = _get_min_price(asset_in);
+    let price_out = _get_max_price(asset_out);
+
+    let mut amount_out = amount_in * price_in / price_out;
+    amount_out = _adjust_for_decimals(amount_out, asset_in, asset_out);
+
+    // adjust rusdAmounts by the same rusdAmount as debt is shifted between the assets
+    let mut rusd_amount = amount_in * price_in / PRICE_PRECISION;
+    let rusd = storage.rusd.read();
+    rusd_amount = _adjust_for_decimals(rusd_amount, asset_in, rusd);
+
+    let fee_basis_points = _get_swap_fee_basis_points(
+        asset_in, 
+        asset_out, 
+        rusd_amount,
+    );
+
+    let amount_out_after_fees = _get_after_fee_amount(
+        u64::try_from(amount_out).unwrap(),
+        u64::try_from(fee_basis_points).unwrap()
+    );
+
+    (
+        amount_out,
+        amount_out_after_fees,
+        fee_basis_points,
+        rusd_amount
+    )
+}
+
 #[storage(read, write)]
 fn _swap(
     asset_in: AssetId,
@@ -2358,31 +2409,20 @@ fn _swap(
     let amount_in = _transfer_in(asset_in).as_u256();
     require(amount_in > 0, Error::VaultInvalidAmountIn);
 
-    let price_in = _get_min_price(asset_in);
-    let price_out = _get_max_price(asset_out);
-
-    let mut amount_out = amount_in * price_in / price_out;
-    amount_out = _adjust_for_decimals(amount_out, asset_in, asset_out);
-
-    // adjust rusdAmounts by the same rusdAmount as debt is shifted between the assets
-    let mut rusd_amount = amount_in * price_in / PRICE_PRECISION;
-    let rusd = storage.rusd.read();
-    rusd_amount = _adjust_for_decimals(rusd_amount, asset_in, rusd);
-
-    let fee_basis_points = _get_swap_fee_basis_points(
-        asset_in, 
-        asset_out, 
-        rusd_amount,
+    let (
+        amount_out,
+        amount_out_after_fees,
+        fee_basis_points,
+        rusd_amount
+    ) = _get_swap_amounts(
+        asset_in,
+        amount_in,
+        asset_out
     );
-
-    let u64_amount_out = u64::try_from(amount_out).unwrap();
-    let amount_out_after_fees = _get_after_fee_amount(
-        u64_amount_out,
-        u64::try_from(fee_basis_points).unwrap()
-    );
+    // this needs to be called here because `_get_swap_amounts` is read-only and cannot update state
     _collect_swap_fees(
         asset_out, 
-        u64_amount_out,
+        u64::try_from(amount_out).unwrap(),
         amount_out_after_fees
     );
 
