@@ -8,12 +8,6 @@ Trading on Ruscet is supported by multi-asset pools that earns liquidity provide
 
 The main components of the protocol are:
 
-- **Vault**
-
-- **RLP**
-
-- **Pricefeeds**
-
 ### 1. Vault
 
 `Vault` is the core contract that handles all trading and liquidity operations. It acts as a peer-to-pool system where users trade against a pool of assets rather than directly with other users. The contract manages:
@@ -35,6 +29,23 @@ The price of RLP is pegged to the worth of all underlying assets within the `Vau
 ### 3. Pricefeeds
 
 `VaultPriceFeed` handles querying and updating of prices from the Pyth network for all assets within the `Vault` pool.
+
+
+## Contract Addresses
+
+```bash
+- Vault: 0x8002f2e86302ef9421558d0ae25a68cdfdbec5d27915cc2db49eded220799ecc
+- VaultPricefeed: 0x3dfcb460ee3cd6dc2ac4be1fbe73c97ce9b4962aa429f4ebdbbfa8dd1d584b78
+- RLPManager: 0x5b210f226d57696d3d0fbf9c85e1232a045d50c12743d1b2cdbab17134eb80a9
+
+- RLPContract: 0x1d9d3b612524384c98e1cf03a1cda6a3aadb8ac794c9df87fe5ca6ac39ae3bcc
+- RLP (asset): 0x7da3cd371c72dddb5a2ffb133c070272555e6b8b3d23f3b8dc17900cc49c6cea
+
+- RUSDContract: 0x80afa110507a0f1a05fd5c12ebb2f256f33b95cf9ff4d425beb7583234aa785c
+- RUSD (asset): 0x5d996c78c3b54f0c5eb96caa41b995ad7b9d6873acbfa5260883206f74bf912a
+
+- ShortsTracker: 0xa94d01923b60c83430d722dc45ffbd634c57aa79edab554e5f18533f3e9436b6
+```
 
 ## Testing
 
