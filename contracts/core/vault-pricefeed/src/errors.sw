@@ -15,5 +15,6 @@ pub enum Error {
     VaultPriceFeedCouldNotFetchPrice: (),
 
     VaultPriceFeedInvalidSignature: (),
-    
+    VaultPriceFeedSignatureAlreadyUsed: (),
+    VaultPriceFeedInvalidMessageTimestamp: (),
 }

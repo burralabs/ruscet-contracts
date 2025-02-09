@@ -34,8 +34,12 @@ use std::hash::*;
 use helpers::{
     zero::*, 
     utils::*,
+    time::get_unix_timestamp,
 };
-use core_interfaces::vault_pricefeed::VaultPricefeed;
+use core_interfaces::vault_pricefeed::{
+    VaultPricefeed,
+    PriceMessage
+};
 use constants::*;
 use errors::*;
 use events::*;
@@ -58,17 +62,8 @@ use events::*;
     }
 */
 
-struct PriceMessage {
-	asset: AssetId,
-	price: u64,
-}
-
-impl Hash for PriceMessage {
-    fn hash(self, ref mut state: Hasher) {
-        self.asset.hash(state);
-        self.price.hash(state);
-    }
-}
+// revision of the contract
+const REVISION: u8 = 5u8;
 
 storage {
     // gov is not restricted to an `Address` (EOA) or a `Contract` (external)
@@ -85,12 +80,22 @@ storage {
 
     price_signer: Address = ZERO_ADDRESS,
 
-    // these values are in the Tai64 format, and should not be confused with being in seconds
     max_price_aheadness: u64 = 30,
     max_price_staleness: u64 = 100,
+
+    // prevent signature replay
+    // cannot use signatures (B512) because `Hash` trait is not implemented for B512
+    // hashed messages are a good standin because they are unique and signature 
+    // is already verified prior to updating this storage slot
+    used_hashed_messages: StorageMap<b256, bool> = StorageMap {},
 }
 
 impl VaultPricefeed for Contract {
+    /// Get the revision of the contract
+    fn get_revision() -> u8 {
+        REVISION
+    }
+
     #[storage(read, write)]
     fn initialize(
         gov: Identity,
@@ -99,10 +104,8 @@ impl VaultPricefeed for Contract {
         require(!storage.is_initialized.read(), Error::VaultPriceFeedAlreadyInitialized);
         storage.is_initialized.write(true);
         
-        storage.gov.write(gov);
-        storage.price_signer.write(price_signer);
-        log(SetGov { gov });
-        log(SetPriceSigner { price_signer });
+        _set_gov(gov);
+        _set_price_signer(price_signer);
     }
 
     /*
@@ -115,31 +118,17 @@ impl VaultPricefeed for Contract {
     #[storage(read, write)]
     fn set_gov(gov: Identity) {
         _only_gov();
-        storage.gov.write(gov);
-        log(SetGov { gov });
+        _set_gov(gov);
     }
 
     #[storage(read, write)]
     fn set_price_signer(price_signer: Address) {
         _only_gov();
-        storage.price_signer.write(price_signer);
-        log(SetPriceSigner { price_signer });
+        _set_price_signer(price_signer);
     }
 
     #[storage(read, write)]
-    fn set_pyth_pricefeed(
-        asset: AssetId,
-        pricefeed_id: PriceFeedId,
-        decimals: u32
-    ) {
-        _only_gov();
-        storage.pyth_pricefeed.insert(asset, pricefeed_id);
-        storage.decimals.insert(asset, decimals);
-        log(SetPythPricefeed { asset, pricefeed_id, decimals });
-    }
-
-    #[storage(read, write)]
-    fn set_pyth_price_configs(
+    fn set_price_configs(
         max_price_aheadness: u64,
         max_price_staleness: u64
     ) {
@@ -183,18 +172,40 @@ impl VaultPricefeed for Contract {
        / / /   |  __/| |_| | |_) | | | (__ 
       /_/_/    |_|    \__,_|_.__/|_|_|\___|
     */
+    /// to prevent signature replay attacks, timestamp is encoded within the price message
+    /// timestamp can be at most 120s (2min) within the current onchain Unix timestamp
     #[storage(read, write)]
     fn update_price(
-        asset: AssetId,
-        new_price: u64,
+        price_message: PriceMessage,
         signature: B512
     ) {
-        let message = sha256(PriceMessage { asset, price: new_price });
-        let recovered_address = ec_recover_address(signature, message).unwrap().bits();
+        let asset = price_message.asset;
+        let timestamp = price_message.timestamp;
+
+        // timestamp deviation can be at most 120s (to account for network latency)
+        let curr_timestamp = get_unix_timestamp();
+        let time_diff = if timestamp > curr_timestamp {
+            timestamp - curr_timestamp
+        } else {
+            curr_timestamp - timestamp
+        };
+        require(
+            time_diff <= 120,
+            Error::VaultPriceFeedInvalidMessageTimestamp
+        );
+
+        let hashed_price_message = sha256(price_message);
+        let recovered_address = ec_recover_address(signature, hashed_price_message).unwrap().bits();
         require(
             recovered_address == storage.price_signer.read().bits(),
             Error::VaultPriceFeedInvalidSignature
         );
+        require(
+            !storage.used_hashed_messages.get(hashed_price_message).try_read().unwrap_or(false),
+            Error::VaultPriceFeedSignatureAlreadyUsed
+        );
+        storage.used_hashed_messages.insert(hashed_price_message, true);
+
         let pricefeed_id = storage.pyth_pricefeed.get(asset).try_read().unwrap_or(ZERO);
         require(
             pricefeed_id != ZERO,
@@ -206,11 +217,13 @@ impl VaultPricefeed for Contract {
         let price = Price {
             confidence: 0,
             exponent: decimals,
-            price: new_price,
-            publish_time: timestamp(),
+            price: price_message.price,
+            // don't use the timestamp from the price message
+            // because it may be conflict with the max_price_aheadness
+            publish_time: get_unix_timestamp(),
         };
         storage.prices.insert(pricefeed_id, price);
-        log(SetPrice { asset, price, timestamp: price.publish_time });
+        log(SetPrice { asset, price, timestamp });
     }
 }
 
@@ -224,6 +237,18 @@ impl VaultPricefeed for Contract {
 #[storage(read)]
 fn _only_gov() {
     require(get_sender() == storage.gov.read(), Error::VaultPriceFeedForbidden);
+}
+
+#[storage(read, write)]
+fn _set_gov(gov: Identity) {
+    storage.gov.write(gov);
+    log(SetGov { gov });
+}
+
+#[storage(read, write)]
+fn _set_price_signer(price_signer: Address) {
+    storage.price_signer.write(price_signer);
+    log(SetPriceSigner { price_signer });
 }
 
 #[storage(read)]
@@ -245,14 +270,14 @@ fn _get_price(
     );
 
     // validate values
-    if price.publish_time < timestamp() {
-        let staleness = timestamp() - price.publish_time;
+    if price.publish_time < get_unix_timestamp() {
+        let staleness = get_unix_timestamp() - price.publish_time;
         require(
             staleness <= storage.max_price_staleness.read(),
             Error::VaultPriceFeedPriceIsStale
         );
     } else {
-        let aheadness = price.publish_time - timestamp();
+        let aheadness = price.publish_time - get_unix_timestamp();
         require(
             aheadness <= storage.max_price_aheadness.read(),
             Error::VaultPriceFeedPriceIsAhead
@@ -267,8 +292,7 @@ fn _get_price(
     } else {
         price.price = price.price - confidence;
     }
-// -10160000000000000000000000000000
-// 
+
     // normalize price precision
     price.price.as_u256() * PRICE_PRECISION / 10.pow(price.exponent).as_u256()
 }

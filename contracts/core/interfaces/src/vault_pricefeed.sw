@@ -2,10 +2,22 @@
 library;
 
 use pyth_interface::data_structures::price::PriceFeedId;
-use std::bytes::Bytes;
-use std::b512::B512;
+use std::{
+    bytes::Bytes,
+    b512::B512,
+};
+use std::hash::*;
+
+pub struct PriceMessage {
+	pub asset: AssetId,
+	pub price: u64,
+    pub timestamp: u64
+}
 
 abi VaultPricefeed {
+    /// Get the revision of the contract
+    fn get_revision() -> u8;
+
     #[storage(read, write)]
     fn initialize(
         gov: Identity,
@@ -26,14 +38,7 @@ abi VaultPricefeed {
     fn set_price_signer(price_signer: Address);
 
     #[storage(read, write)]
-    fn set_pyth_pricefeed(
-        asset: AssetId,
-        pricefeed_id: PriceFeedId,
-        decimals: u32
-    );
-
-    #[storage(read, write)]
-    fn set_pyth_price_configs(
+    fn set_price_configs(
         max_price_aheadness: u64,
         max_price_staleness: u64
     );
@@ -67,8 +72,15 @@ abi VaultPricefeed {
     */
     #[storage(read, write)]
     fn update_price(
-        asset: AssetId,
-        new_price: u64,
+        price_message: PriceMessage,
         signature: B512
     );
+}
+
+impl Hash for PriceMessage {
+    fn hash(self, ref mut state: Hasher) {
+        self.asset.hash(state);
+        self.price.hash(state);
+        self.timestamp.hash(state);
+    }
 }
