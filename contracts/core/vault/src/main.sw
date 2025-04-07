@@ -1910,8 +1910,10 @@ fn _update_cumulative_funding_rate(collateral_asset: AssetId) {
     let last_funding_time = storage.last_funding_times.get(collateral_asset).try_read().unwrap_or(0);
     let funding_interval = storage.funding_interval.read();
 
+    let updated_timestamp = (timestamp / funding_interval) * funding_interval;
+
     if last_funding_time == 0 {
-        _write_last_funding_time(collateral_asset, timestamp);
+        _write_last_funding_time(collateral_asset, updated_timestamp);
         return;
     }
 
@@ -1927,7 +1929,7 @@ fn _update_cumulative_funding_rate(collateral_asset: AssetId) {
         new_cumulative_funding_rate
     );
 
-    _write_last_funding_time(collateral_asset, timestamp);
+    _write_last_funding_time(collateral_asset, updated_timestamp);
 
     log(UpdateFundingRate {
         asset: collateral_asset,
@@ -2783,7 +2785,6 @@ fn _reduce_collateral(
     size_delta: u256,
     is_long: bool,
 ) -> (u256, u256) {
-
     let position_key = _get_position_key(
         account,
         collateral_asset,
