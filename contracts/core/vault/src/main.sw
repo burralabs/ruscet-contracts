@@ -59,7 +59,7 @@ use constants::*;
 use errors::*;
 
 // revision of the contract
-const REVISION: u8 = 5u8;
+const REVISION: u8 = 6u8;
 
 storage {
     // gov is not restricted to an `Address` (EOA) or a `Contract` (external)
